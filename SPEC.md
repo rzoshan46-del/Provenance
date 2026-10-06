@@ -137,3 +137,29 @@ GOAL (one module only) / STACK limits / FILES to create or change / DETAILS (fro
 
 &#x20; P2 "Open annotation guidelines and benchmark for retinal image quality": knowledge\_sharing, internal, plainly UNPAID (recognition only: certificates, badges, co-authorship, recommendation letters). If later commercialised, contributors keep authorship credit and are notified; any payment terms need a new charter version each contributor must accept.
 
+\## 17. Ledger implementation details (added in S2)
+
+\- Module app/ledger.py. Only this file may write to ledger\_entries, and only by INSERT through append(), except the clearly labelled demo helpers tamper\_demo() and restore\_demo().
+
+\- canonical(obj) = json.dumps(obj, sort\_keys=True, separators=(",",":"), ensure\_ascii=True).
+
+\- payload\_json = canonical(payload); payload\_hash = SHA-256 hex of payload\_json.
+
+\- entry\_hash = SHA-256 hex of prev\_hash + "|" + canonical({"timestamp","actor\_id","actor\_type","human\_owner\_id","action","project\_id","payload\_hash","charter\_version"}). None becomes null. The timestamp is UTC ISO-8601 with milliseconds and is stored exactly as hashed.
+
+\- Genesis entry: action "genesis", actor\_type "system", prev\_hash = 64 zeros, payload {"note":"ledger initialised"}.
+
+\- append(...) validates: actor\_type is human, agent or system; agent entries MUST have human\_owner\_id; human entries default human\_owner\_id to actor\_id. It runs inside BEGIN IMMEDIATE so two writers cannot fork the chain.
+
+\- verify() walks entries by id and checks: (1) payload\_hash == SHA-256(payload\_json); (2) entry\_hash recomputes; (3) prev\_hash equals the previous entry\_hash (64 zeros for the first). It returns ok, checked, first\_broken\_id, reason, head\_hash.
+
+\- Payloads hold ids, hashes and short labels only. NEVER put confidential text (briefs, artefact text) or emails in a payload.
+
+\- Visibility: verify is public. A project's entries are fully visible only if can\_view(user, project, 'roster') is true; otherwise they are returned REDACTED (id, prev\_hash, entry\_hash, timestamp only), so the chain stays checkable without leaking content. Entries without a project (genesis, system) are visible to everyone.
+
+\- Demo tools: tamper adds "\_tampered": true to the payload\_json of an old entry (simulating someone editing the database directly); restore removes it. They are enabled unless env PROVENANCE\_DEMO is "0" (read on every call) and write no ledger entry.
+
+\- Limits (say this in the demo): someone with full database control who re-computes every later hash is detected only by an external anchor. MOCKED: production would anchor the head hash or a Merkle root on a public blockchain and use per-user signatures.
+
+\- Action vocabulary for later modules: genesis, project\_posted, charter\_published, charter\_accepted, charter\_declined, member\_left, milestone\_proposed, escrow\_funded, escrow\_state\_changed, contribution\_submitted, contribution\_flagged, review\_recorded, payout\_released, credential\_issued, agent\_action, agent\_action\_approved, dispute\_opened, dispute\_resolved, correction.
+

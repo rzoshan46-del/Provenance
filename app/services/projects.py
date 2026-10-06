@@ -87,9 +87,27 @@ def create_project(sponsor: Any, fields: Dict[str, Any]) -> int:
             now_iso,
         ),
     )
-    # LEDGER HOOK (S2): ledger.append(action='project_posted')
-
+    # Compute brief hash for ledger payload (never store the brief text in a payload - RULES.md l)
+    brief_hash = hashlib.sha256(confidential_brief.encode("utf-8")).hexdigest()
     charter_hash = canonical_charter_hash(1, terms)
+
+    import app.ledger as ledger
+    ledger.append(
+        action="project_posted",
+        actor_id=sponsor["id"],
+        actor_type="human",
+        human_owner_id=sponsor["id"],
+        project_id=project_id,
+        charter_version=1,
+        payload={
+            "title": title,
+            "engagement_model": engagement_model,
+            "sensitivity_label": sensitivity_label,
+            "brief_hash": brief_hash,
+            "charter_hash": charter_hash,
+        },
+    )
+
     execute(
         """
         INSERT INTO charters (project_id, version, terms_json, hash, published_at)
@@ -97,7 +115,20 @@ def create_project(sponsor: Any, fields: Dict[str, Any]) -> int:
         """,
         (project_id, 1, json.dumps(terms), charter_hash, now_iso),
     )
-    # LEDGER HOOK (S2): ledger.append(action='charter_published')
+    ledger.append(
+        action="charter_published",
+        actor_id=sponsor["id"],
+        actor_type="human",
+        human_owner_id=sponsor["id"],
+        project_id=project_id,
+        charter_version=1,
+        payload={
+            "version": 1,
+            "charter_hash": charter_hash,
+            "engagement_model": engagement_model,
+            "change_note": "initial charter",
+        },
+    )
 
     return project_id
 
