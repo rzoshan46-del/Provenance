@@ -163,3 +163,29 @@ GOAL (one module only) / STACK limits / FILES to create or change / DETAILS (fro
 
 \- Action vocabulary for later modules: genesis, project\_posted, charter\_published, charter\_accepted, charter\_declined, member\_left, milestone\_proposed, escrow\_funded, escrow\_state\_changed, contribution\_submitted, contribution\_flagged, review\_recorded, payout\_released, credential\_issued, agent\_action, agent\_action\_approved, dispute\_opened, dispute\_resolved, correction.
 
+\## 18. Milestones, escrow, split, contributions, credentials (added in S3)
+
+\- Milestone status: proposed | open | submitted | accepted. Manual creation by the sponsor sets "open" (S4's scoping agent will create "proposed"; the sponsor approves it to "open"). Funded projects: amount\_inr is a positive integer and an escrow row is created in state draft. Non-funded projects: amount\_inr MUST be 0 and no escrow row exists (no implied promises). stipend and institutional\_credit are not used in the demo; they behave like non-monetary (credentials only). MOCKED/not implemented: stipend payments.
+
+\- Escrow transitions (app/services/escrow.py, escrow\_transition): draft->funded (sponsor owner; MOCKED payment, production would use a payment gateway + KYC); funded->submitted (expert member; needs at least 1 approved contribution); submitted->accepted (sponsor owner); accepted->released (automatic in the same call); submitted->funded and disputed->released|refunded are reserved for S6. Anything else raises ValueError. On funded projects no contribution can be submitted until the escrow state is funded.
+
+\- Contributions: submitted by members of the CURRENT charter version. ai\_declaration is mandatory (human | ai\_assisted | agent\_generated). artefact\_hash = SHA-256 of the text. Reviewed only by expert members who are not the author and have no conflict of interest. Approve needs an integer impact\_score 1-10 (stored as impact\_weight); reject needs non-empty reasons stated against the acceptance criteria. A contribution is reviewed once (later attempts get 409). Credit ALWAYS goes to the human author; AI agents never receive payouts or credentials.
+
+\- Split engine, app/splits.py: pure function compute\_split(amount\_inr, student\_weights {user\_id: weight}, expert\_ids, config=None). Uses fractions.Fraction and integer rupees. Default config: fee 0.10, ai\_reserve 0.05 (both of the milestone amount, rounded half up), expert\_share 0.30 of net, equal\_part 0.40 of the student pool. Expert pool is split equally among experts; if there are no experts it is added to the student pool. All-zero weights mean an equal split. No students raises ValueError("no eligible students"). Largest-remainder rounding; ties go to the LOWEST weight, then the lowest user id (this reproduces the handout example).
+
+\- Weights: a student's weight is the sum of impact\_scores of their approved contributions on that milestone. Participants are students and experts with at least 1 approved contribution on that milestone; other members receive nothing for it.
+
+\- Payouts: one row per paid person. rationale\_json holds the full breakdown (amount, config, fee, reserve, net, role, weight, weight share, equal part, weighted part, rounding adjustment, a plain-English sentence, and an AI-credit note when relevant). receipt\_hash = SHA-256 of canonical({escrow\_id, user\_id, amount\_inr, rationale}). The milestone receipt hash (SHA-256 of canonical({milestone\_id, amount\_inr, fee\_inr, ai\_reserve\_inr, payout\_hashes sorted})) goes in the ledger payout\_released payload. verify\_receipt recomputes everything and checks that payouts + fee + AI reserve equal the milestone amount. MOCKED: production would reconcile the AI reserve against metered AI usage.
+
+\- Credentials: on acceptance, one "certificate" per contributor in every engagement model. credential\_hash = SHA-256 of canonical({project\_id, user\_id, kind, milestone\_id, charter\_version, issued\_at}). Public check: GET /api/credentials/{hash}.
+
+\- Credit statement (non-monetary): computed live from approved contributions' impact scores as percentage shares. It contains no currency symbols or payment wording.
+
+\- Visibility: milestones, contributions and receipts are visible to the owning sponsor, members and admin (can\_view 'milestones').
+
+\- New ledger actions: milestone\_created, milestone\_approved, milestone\_submitted, milestone\_accepted (in addition to section 17).
+
+\- Money is integer rupees everywhere. Indian digit grouping is used for display (1,00,000).
+
+\- Demo numbers: a milestone of INR 1,00,000 with impact scores 5, 3, 2 and one expert reproduces the handout: students 25,783 / 18,643 / 15,074 and expert 25,500.
+

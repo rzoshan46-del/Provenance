@@ -106,7 +106,19 @@
                 </div>
                 <div class="status-chip-row">
                     <span class="status-label">Ledger Engine</span>
-                    <span class="chip chip-amber">not started yet</span>
+                    {% if ledger_info and ledger_info.ok %}
+                        <a href="/ledger" class="chip chip-lime" style="text-decoration:none">
+                            Ledger: {{ ledger_info.checked }} entries (VERIFIED)
+                        </a>
+                    {% elif ledger_info %}
+                        <a href="/ledger" class="chip chip-red" style="text-decoration:none">
+                            Ledger: {{ ledger_info.checked }} entries (BROKEN)
+                        </a>
+                    {% else %}
+                        <a href="/ledger" class="chip chip-amber" style="text-decoration:none">
+                            Ledger: 0 entries
+                        </a>
+                    {% endif %}
                 </div>
                 <div class="status-chip-row">
                     <span class="status-label">AI Gateway</span>

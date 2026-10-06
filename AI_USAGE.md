@@ -3,3 +3,4 @@
 This file tracks all code and assets generated with AI tools throughout the project.
 
 - **Module S0 Skeleton**: Generated project skeleton (FastAPI, Jinja2, SQLite, CSS, 14 tables schema, seed users, RBAC persona switching, smoke tests, demo reset, configuration) using Google Antigravity.
+- **Module S2b Ledger UI**: Built tamper-evident ledger interface (`app/templates/ledger.html`, `app/static/ledger.js`, `app/static/app.css`), including server-verified integrity bar, animated horizontal chain strip, filterable entry list with non-member redactions, direct database tampering simulation panel, system status chips on home and project pages, and smoke checks 38-45 using Google Antigravity.

@@ -22,6 +22,8 @@ async def lifespan(app: FastAPI):
     init_db()
     seed_users()
     seed_projects()
+    import app.ledger as ledger
+    ledger.ensure_genesis()
     yield
 
 
@@ -89,6 +91,9 @@ def home(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
         except Exception:
             skills = []
 
+    import app.ledger as ledger
+    ledger_info = ledger.verify()
+
     return templates.TemplateResponse(
         request,
         "home.html",
@@ -97,6 +102,7 @@ def home(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
             "all_users": all_users,
             "skills": skills,
             "user_count": user_count,
+            "ledger_info": ledger_info,
         },
     )
 
@@ -136,17 +142,106 @@ def admin_console(request: Request, admin: sqlite3.Row = Depends(require_role("a
     )
 
 
+def _action_category_color(action: Optional[str]) -> str:
+    if not action:
+        return "system"
+    if action in (
+        "project_posted",
+        "charter_published",
+        "charter_accepted",
+        "charter_declined",
+        "member_left",
+        "dispute_opened",
+        "dispute_resolved",
+    ):
+        return "gov"
+    if action in ("escrow_funded", "escrow_state_changed", "payout_released"):
+        return "money"
+    if action in (
+        "contribution_submitted",
+        "contribution_flagged",
+        "agent_action",
+        "agent_action_approved",
+        "milestone_proposed",
+        "review_recorded",
+        "credential_issued",
+    ):
+        return "work"
+    return "system"
+
+
 @app.get("/ledger")
-def ledger(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
-    all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+def ledger(
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+    project_id: Optional[int] = None,
+    actor_type: Optional[str] = None,
+):
+    import app.ledger as ledger
+    verify = ledger.verify()
+
+    # Full chain for chain strip (ascending order)
+    strip_entries = ledger.list_entries(user)
+    for block in strip_entries:
+        if not block.get("redacted"):
+            block["action_color"] = _action_category_color(block.get("action"))
+
+    # Filtered entries for entry list
+    if project_id is not None:
+        raw_list = ledger.list_entries(user, project_id=project_id)
+    else:
+        raw_list = strip_entries
+
+    if actor_type:
+        raw_list = [e for e in raw_list if e.get("actor_type") == actor_type]
+
+    # Order newest first (descending by id)
+    list_entries = sorted(raw_list, key=lambda x: x["id"], reverse=True)
+
+    # Resolution helpers — query name and role only (no email addresses)
+    all_users_rows = query_all("SELECT id, name, role FROM users ORDER BY id ASC")
+    user_names = {u["id"]: u["name"] for u in all_users_rows}
+    projects_rows = query_all("SELECT id, title FROM projects ORDER BY id ASC")
+    project_titles = {p["id"]: p["title"] for p in projects_rows}
+
+    for entry in list_entries:
+        if not entry.get("redacted"):
+            entry["action_color"] = _action_category_color(entry.get("action"))
+            payload_data = entry.get("payload")
+            entry["payload_pretty"] = (
+                json.dumps(payload_data, indent=2) if payload_data is not None else ""
+            )
+            entry["human_owner_name"] = user_names.get(entry.get("human_owner_id")) or (
+                "System" if entry.get("actor_type") == "system" else "Unknown"
+            )
+            entry["project_title"] = project_titles.get(entry.get("project_id")) or ""
+
+    # Demo panel setup: identify earliest entry that has a project_id
+    is_demo = ledger.demo_mode()
+    demo_entries = strip_entries
+    default_demo_entry_id = None
+    for entry in strip_entries:
+        if entry.get("project_id") is not None:
+            default_demo_entry_id = entry["id"]
+            break
+    if default_demo_entry_id is None and strip_entries:
+        default_demo_entry_id = strip_entries[0]["id"]
+
     return templates.TemplateResponse(
         request,
-        "placeholder.html",
+        "ledger.html",
         {
-            "title": "Tamper-Evident Ledger",
-            "module_note": "Module S2 will build the append-only Hash-Chain Ledger, Verification, and Tamper Demo.",
             "user": user,
-            "all_users": all_users,
+            "all_users": all_users_rows,
+            "verify": verify,
+            "strip_entries": strip_entries,
+            "list_entries": list_entries,
+            "projects": projects_rows,
+            "selected_project_id": project_id,
+            "selected_actor_type": actor_type,
+            "is_demo_mode": is_demo,
+            "demo_entries": demo_entries,
+            "default_demo_entry_id": default_demo_entry_id,
         },
     )
 
@@ -295,6 +390,11 @@ def _build_project_context(project_id: int, user: Optional[Any]) -> Dict[str, An
             (project_id,),
         )
 
+    ledger_count_row = query_one(
+        "SELECT COUNT(*) as c FROM ledger_entries WHERE project_id = ?", (project_id,)
+    )
+    ledger_count = ledger_count_row["c"] if ledger_count_row else 0
+
     return {
         "project": project,
         "sponsor": sponsor,
@@ -306,6 +406,7 @@ def _build_project_context(project_id: int, user: Optional[Any]) -> Dict[str, An
         "brief_text": brief_text,
         "members": members,
         "milestones": milestones,
+        "ledger_count": ledger_count,
     }
 
 
@@ -647,3 +748,117 @@ def api_membership(
     uid = user["id"] if user else None
     state = membership_state(project_id, uid)
     return {"state": state}
+
+
+# ─────────────────────────────────────────────
+# Ledger JSON API routes (S2)
+# ─────────────────────────────────────────────
+
+@app.get("/api/ledger/verify")
+def api_ledger_verify():
+    import app.ledger as ledger
+    return ledger.verify()
+
+
+@app.post("/api/ledger/tamper")
+async def api_ledger_tamper(
+    request: Request,
+    entry_id: Optional[int] = Form(None),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+    try:
+        if entry_id is None:
+            try:
+                body = await request.json()
+                if isinstance(body, dict):
+                    entry_id = body.get("entry_id")
+            except Exception:
+                pass
+        tampered_id = ledger.tamper_demo(entry_id)
+        return {"status": "tampered", "entry_id": tampered_id}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/ledger/restore")
+def api_ledger_restore():
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+    try:
+        count = ledger.restore_demo()
+        return {"status": "restored", "restored_count": count}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ─────────────────────────────────────────────
+# Milestones & Escrow API routes (S3a)
+# ─────────────────────────────────────────────
+
+@app.post("/api/projects/{project_id}/milestones")
+async def api_create_milestone(
+    project_id: int,
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+    title: str = Form(""),
+    deliverables: str = Form(""),
+    acceptance_criteria: str = Form(""),
+    required_skills: str = Form(""),
+    amount_inr: Any = Form(0),
+    acceptance_window_days: int = Form(7),
+):
+    from app.services.milestones import create_milestone
+
+    fields = {
+        "title": title,
+        "deliverables": deliverables,
+        "acceptance_criteria": acceptance_criteria,
+        "required_skills": required_skills,
+        "amount_inr": amount_inr,
+        "acceptance_window_days": acceptance_window_days,
+    }
+
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                fields.update(body)
+        except Exception:
+            pass
+
+    milestone_id = create_milestone(user, project_id, fields)
+    return JSONResponse({"status": "ok", "milestone_id": milestone_id}, status_code=200)
+
+
+@app.get("/api/projects/{project_id}/milestones")
+def api_list_milestones(
+    project_id: int,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    from app.services.milestones import list_milestones
+    return list_milestones(user, project_id)
+
+
+@app.get("/api/milestones/{milestone_id}")
+def api_get_milestone(
+    milestone_id: int,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    from app.services.milestones import get_milestone
+    return get_milestone(user, milestone_id)
+
+
+@app.post("/api/milestones/{milestone_id}/fund")
+def api_fund_milestone(
+    milestone_id: int,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    from app.services.escrow import fund_milestone
+    result = fund_milestone(user, milestone_id)
+    return JSONResponse(result, status_code=200)
+
+

@@ -37,6 +37,7 @@
                     <span class="chip chip-lime">PUBLIC</span>
                 {% endif %}
                 <span class="chip chip-cyan">Charter v{{ project.current_charter_version }}</span>
+                <a href="/ledger?project_id={{ project.id }}" class="chip chip-lime" style="text-decoration:none">Ledger: {{ ledger_count }} entries</a>
                 <span class="chip" style="background:rgba(138,151,166,0.1);color:var(--muted);border:1px solid rgba(138,151,166,0.3)">{{ project.status | upper }}</span>
             </div>
             <h1 style="font-size:1.55rem;line-height:1.3">{{ project.title }}</h1>

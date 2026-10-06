@@ -1,4 +1,4 @@
-﻿import os
+import os
 from pathlib import Path
 import sys
 import re
@@ -390,6 +390,93 @@ def run_checks() -> bool:
     check(37, "visibility page returns 200 with allowed/blocked cells and both users",
           ok_29,
           f"status={res_vis.status_code}, sponsor_in={sponsor_name in res_vis.text}")
+
+    # ── Checks 38–45 (S2b: Ledger UI & API) ──
+
+    # (38) GET /api/ledger/verify returns 200 and ok=True on valid chain
+    res_verify = client.get("/api/ledger/verify")
+    verify_data = res_verify.json() if res_verify.status_code == 200 else {}
+    ok_38 = res_verify.status_code == 200 and verify_data.get("ok") is True
+    check(38, "GET /api/ledger/verify returns 200 and ok=True", ok_38, f"status={res_verify.status_code}")
+
+    # (39) GET /ledger returns 200 with chain strip and integrity bar
+    res_ledger_base = client.get("/ledger")
+    ok_39 = (
+        res_ledger_base.status_code == 200
+        and "chain-strip" in res_ledger_base.text
+        and "integrity-bar" in res_ledger_base.text
+    )
+    check(39, "GET /ledger returns 200 with chain strip and integrity bar", ok_39, f"status={res_ledger_base.status_code}")
+
+    # (40) project detail page contains Ledger chip linking to /ledger?project_id=1
+    res_p1 = client.get("/projects/1")
+    ok_40 = (
+        res_p1.status_code == 200
+        and "Ledger:" in res_p1.text
+        and "/ledger?project_id=1" in res_p1.text
+    )
+    check(40, "project detail page contains Ledger chip linking to /ledger?project_id=1", ok_40, f"status={res_p1.status_code}")
+
+    # (41) /ledger returns 200 and contains "CHAIN VERIFIED" and the first 12 characters of the head hash
+    res_ledger = client.get("/ledger")
+    head_hash = verify_data.get("head_hash", "")
+    head_12 = head_hash[:12] if head_hash else ""
+    ok_41 = (
+        res_ledger.status_code == 200
+        and "CHAIN VERIFIED" in res_ledger.text
+        and head_12 in res_ledger.text
+    )
+    check(41, '/ledger returns 200 and contains "CHAIN VERIFIED" and the first 12 characters of the head hash',
+          ok_41, f"status={res_ledger.status_code}, head_12={head_12} in_text={head_12 in res_ledger.text}")
+
+    # (42) after POST /api/ledger/tamper, /ledger contains "CHAIN BROKEN" and the broken entry id
+    res_tamper = client.post("/api/ledger/tamper")
+    tamper_id = res_tamper.json().get("entry_id") if res_tamper.status_code == 200 else None
+    res_ledger_broken = client.get("/ledger")
+    ok_42 = (
+        res_tamper.status_code == 200
+        and tamper_id is not None
+        and "CHAIN BROKEN" in res_ledger_broken.text
+        and str(tamper_id) in res_ledger_broken.text
+    )
+    check(42, 'after POST /api/ledger/tamper, /ledger contains "CHAIN BROKEN" and the broken entry id',
+          ok_42, f"tamper_status={res_tamper.status_code}, tamper_id={tamper_id}, broken_in_text={'CHAIN BROKEN' in res_ledger_broken.text}")
+
+    # (43) after POST /api/ledger/restore, /ledger contains "CHAIN VERIFIED" again
+    res_restore = client.post("/api/ledger/restore")
+    res_ledger_restored = client.get("/ledger")
+    ok_43 = (
+        res_restore.status_code == 200
+        and "CHAIN VERIFIED" in res_ledger_restored.text
+    )
+    check(43, 'after POST /api/ledger/restore, /ledger contains "CHAIN VERIFIED" again',
+          ok_43, f"restore_status={res_restore.status_code}, verified_in_text={'CHAIN VERIFIED' in res_ledger_restored.text}")
+
+    # (44) /ledger rendered for the non-member student Sneha does not contain the text "charter_accepted" and does not contain any user's email address
+    res_sneha_ledger = sneha_client.get("/ledger")
+    has_charter_accepted = "charter_accepted" in res_sneha_ledger.text
+    has_email = any(
+        u["email"] in res_sneha_ledger.text
+        for u in query_all("SELECT email FROM users")
+    ) or bool(re.search(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", res_sneha_ledger.text))
+    ok_44 = (
+        res_sneha_ledger.status_code == 200
+        and not has_charter_accepted
+        and not has_email
+    )
+    check(44, '/ledger rendered for the non-member student Sneha does not contain the text "charter_accepted" and does not contain any user\'s email address',
+          ok_44, f"status={res_sneha_ledger.status_code}, has_charter_accepted={has_charter_accepted}, has_email={has_email}")
+
+    # (45) the home page shows the ledger entry count and VERIFIED
+    res_home = client.get("/")
+    checked_str = str(verify_data.get("checked", ""))
+    ok_45 = (
+        res_home.status_code == 200
+        and "VERIFIED" in res_home.text
+        and checked_str in res_home.text
+    )
+    check(45, "the home page shows the ledger entry count and VERIFIED",
+          ok_45, f"status={res_home.status_code}, VERIFIED_in={'VERIFIED' in res_home.text}, count_in={checked_str in res_home.text}")
 
     if all_passed:
         print("\nALL CHECKS PASSED")
