@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Provenance{% endblock %}
+
+{% block content %}
+<div class="placeholder-container">
+    <div class="card placeholder-card">
+        <div class="card-header">
+            <div>
+                <span class="eyebrow">Work in Progress</span>
+                <h2>{{ title }}</h2>
+            </div>
+            <span class="chip chip-cyan">Module Roadmap</span>
+        </div>
+
+        <div class="card-body">
+            <p class="placeholder-note">{{ module_note }}</p>
+
+            <div class="roadmap-summary">
+                <h4>Hackathon Delivery Sequence:</h4>
+                <ul class="roadmap-list">
+                    <li><strong class="text-lime">S0 (Current):</strong> Architecture Skeleton, SQLite Data Model (14 tables), Seed Identities, RBAC.</li>
+                    <li><strong>S1:</strong> Projects, Charters, Multi-Party Acceptance, Confidential Brief Gating, View-as simulator.</li>
+                    <li><strong>S2:</strong> Append-only Hash-Chain Ledger, Tamper Detection, Integrity Verification.</li>
+                    <li><strong>S3:</strong> Escrow State Engine, Largest-Remainder Split Calculator, Payout Receipts.</li>
+                    <li><strong>S4:</strong> AI Gateway, Scoping Agent, Matching Engine with Conflict Filtering, Human Owner Approvals.</li>
+                    <li><strong>S5:</strong> Integrity Engine, Shingle/Cosine Plagiarism Detection, Zero-Width Watermarking, Leak Tracer.</li>
+                    <li><strong>S6:</strong> 10-Step Automated Story Mode, Corner Case Simulator, Final Polish.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card-footer">
+            <a href="/" class="btn btn-secondary">&larr; Return to Home</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Visibility — {{ project.title }} — Provenance{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="/projects">Projects</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="/projects/{{ project.id }}">{{ project.title }}</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Visibility Matrix</span>
+</div>
+
+<div class="page-header">
+    <h1>Who Can See What</h1>
+</div>
+
+<p style="color:var(--muted);font-size:0.88rem;margin-bottom:0.5rem">
+    Computed from the same rules the server enforces — <code>app/access.py → can_view()</code>.
+    No route re-implements these rules.
+</p>
+<p class="muted-text" style="margin-bottom:1.5rem">
+    Project: <strong style="color:var(--text)">{{ project.title }}</strong>
+</p>
+
+<div class="vis-matrix-wrap">
+    <table class="vis-matrix">
+        <thead>
+            <tr>
+                <th>Resource</th>
+                {# Anonymous column #}
+                <th>
+                    <div class="vis-matrix-user">
+                        <span class="vis-user-name">Anonymous</span>
+                        <span class="role-chip role-none" style="font-size:0.62rem;padding:0.1rem 0.4rem">ANON</span>
+                        <span class="vis-user-state">—</span>
+                    </div>
+                </th>
+                {# One column per seeded user #}
+                {% for col in columns %}
+                <th>
+                    <div class="vis-matrix-user">
+                        <span class="vis-user-name">{{ col.name }}</span>
+                        <span class="role-chip role-{{ col.role }}" style="font-size:0.62rem;padding:0.1rem 0.4rem">{{ col.role | upper }}</span>
+                        {% if col.state == 'member' %}
+                            <span class="vis-user-state" style="color:var(--verified)">member</span>
+                        {% elif col.state == 'reaccept_required' %}
+                            <span class="vis-user-state" style="color:var(--pending)">re-accept</span>
+                        {% elif col.state == 'declined' %}
+                            <span class="vis-user-state" style="color:var(--broken)">declined</span>
+                        {% else %}
+                            <span class="vis-user-state">not joined</span>
+                        {% endif %}
+                    </div>
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for resource in resources %}
+            <tr>
+                <td>
+                    <strong>{{ resource | replace('_', ' ') | title }}</strong>
+                    {% if resource == 'brief' %}
+                        <br><span class="muted-text" style="font-size:0.72rem">admin cannot see</span>
+                    {% endif %}
+                </td>
+                {# Anonymous cell #}
+                <td>
+                    {% if matrix['anonymous'][resource] %}
+                        <span class="vis-allow" title="Allowed">✓</span>
+                    {% else %}
+                        <span class="vis-block" title="Blocked">✗</span>
+                    {% endif %}
+                </td>
+                {# Per-user cells #}
+                {% for col in columns %}
+                <td>
+                    {% if matrix[col.id][resource] %}
+                        <span class="vis-allow" title="Allowed">✓</span>
+                    {% else %}
+                        <span class="vis-block" title="Blocked">✗</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top:1.5rem;display:flex;gap:1.5rem;font-size:0.82rem;color:var(--muted)">
+    <span><span class="vis-allow">✓</span> Allowed</span>
+    <span><span class="vis-block">✗</span> Blocked</span>
+</div>
+
+<div style="margin-top:2rem">
+    <a href="/projects/{{ project.id }}" class="btn btn-secondary">← Back to Project</a>
+</div>
+{% endblock %}

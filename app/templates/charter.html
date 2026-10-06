@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Charter — {{ project.title }} — Provenance{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="/projects">Projects</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="/projects/{{ project.id }}">{{ project.title }}</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Charter</span>
+</div>
+
+<div class="page-header">
+    <h1>Charter History</h1>
+    <div class="project-card-chips">
+        <span class="chip chip-cyan">{{ versions | length }} version{{ 's' if versions | length != 1 }}</span>
+    </div>
+</div>
+
+{% for v in versions %}
+<div class="charter-version-block">
+    <div class="charter-version-header">
+        <div style="display:flex;align-items:center;gap:0.75rem">
+            <span class="chip chip-cyan">v{{ v.version }}</span>
+            {% if v.version == project.current_charter_version %}
+                <span class="chip chip-lime">Current</span>
+            {% endif %}
+            <span class="hash-chip" title="{{ v.hash }}">{{ v.hash[:12] }}…</span>
+        </div>
+        <span class="muted-text" style="font-size:0.8rem">Published {{ v.published_at[:10] }}</span>
+    </div>
+
+    {% if v.diff_rows %}
+    {# Show diff against previous version — changed keys highlighted #}
+    <div style="padding:0.5rem 0">
+        <p style="font-size:0.75rem;color:var(--muted);padding:0.5rem 1.25rem;margin-bottom:0">
+            Changes from v{{ v.version - 1 }}:
+        </p>
+        <table class="charter-terms-table">
+            <thead>
+                <tr>
+                    <th>Term</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in v.diff_rows %}
+                <tr class="{% if row.changed %}diff-row{% else %}diff-unchanged{% endif %}">
+                    <td>{{ row.key | replace('_', ' ') | title }}</td>
+                    <td>
+                        {% if row.changed %}
+                            <span class="diff-before">{{ row.before }}</span>
+                            <span class="diff-after">{{ row.after }}</span>
+                        {% else %}
+                            <span style="color:var(--muted);font-size:0.82rem">{{ row.after }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    {# v1 — show full terms #}
+    <table class="charter-terms-table">
+        <thead>
+            <tr>
+                <th>Term</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key, value in v.terms.items() %}
+            <tr>
+                <td>{{ key | replace('_', ' ') | title }}</td>
+                <td style="color:#c7d2de;line-height:1.6">{{ value }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endfor %}
+
+{# ── Publish new version form (owning sponsor only) ── #}
+{% if is_sponsor %}
+<div class="publish-form-card">
+    <h3>⚡ Publish New Charter Version</h3>
+
+    {% if publish_error %}
+    <div class="form-error" style="margin-bottom:1.25rem">
+        <span>⚠</span> {{ publish_error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/projects/{{ project.id }}/charter">
+        <div class="form-group">
+            <label class="form-label" for="rewards">Rewards (updated text)</label>
+            <textarea class="form-textarea" id="rewards" name="rewards" rows="2"
+                      placeholder="Leave blank to keep existing rewards text."></textarea>
+            <p class="form-hint">Only fields you fill in will be changed; others carry over from the current version.</p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="engagement_model">Engagement Model (optional change)</label>
+            <select class="form-select" id="engagement_model" name="engagement_model">
+                <option value="">— No change —</option>
+                <option value="funded">Funded</option>
+                <option value="stipend">Stipend</option>
+                <option value="knowledge_sharing">Knowledge Sharing — UNPAID</option>
+                <option value="institutional_credit">Institutional Credit — UNPAID</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="change_note">Change Note *</label>
+            <textarea class="form-textarea" id="change_note" name="change_note" rows="2"
+                      required placeholder="Brief description of what changed and why."></textarea>
+        </div>
+
+        <p class="form-hint" style="margin-bottom:1rem">
+            ⚠ Publishing a new version will require ALL current members to re-accept before they can continue.
+        </p>
+        <button type="submit" class="btn btn-primary">Publish Version {{ next_version }}</button>
+    </form>
+</div>
+{% endif %}
+
+{% endblock %}

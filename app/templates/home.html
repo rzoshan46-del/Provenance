@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Provenance - Home{% endblock %}
+
+{% block content %}
+<div class="page-grid">
+    <!-- Active Persona Section -->
+    <section class="persona-section">
+        {% if user %}
+            <div class="card persona-card">
+                <div class="card-header">
+                    <div>
+                        <span class="eyebrow">Active Persona</span>
+                        <h2 class="persona-name">{{ user.name }}</h2>
+                    </div>
+                    <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
+                </div>
+
+                <div class="card-body">
+                    <div class="profile-meta-grid">
+                        <div class="meta-item">
+                            <span class="meta-label">Email</span>
+                            <span class="meta-value">{{ user.email }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Institution</span>
+                            <span class="meta-value">{{ user.institution or "Independent" }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Verification</span>
+                            <span class="meta-value status-verified">Level {{ user.verification_level }} Verified</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Legal / Consent</span>
+                            <span class="meta-value">
+                                {% if user.is_minor %}
+                                    <span class="chip chip-amber">Minor {% if not user.guardian_consent %}(No Guardian Consent){% else %}(Consent On File){% endif %}</span>
+                                {% else %}
+                                    <span class="chip chip-lime">Adult Contributor</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    {% if user.bio %}
+                        <div class="profile-bio">
+                            <span class="meta-label">Biography</span>
+                            <p>{{ user.bio }}</p>
+                        </div>
+                    {% endif %}
+
+                    <div class="profile-skills">
+                        <span class="meta-label">Verified Skill Matrix</span>
+                        <div class="chip-group">
+                            {% for skill in skills %}
+                                <span class="skill-chip">{{ skill }}</span>
+                            {% else %}
+                                <span class="muted-text">No skills listed</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-footer">
+                    <span class="mock-notice">MOCKED: In production, identity is verified via decentralized KYC &amp; cryptographic keypair.</span>
+                </div>
+            </div>
+        {% else %}
+            <div class="card empty-card">
+                <div class="empty-state">
+                    <div class="empty-icon">👤</div>
+                    <h2>Choose a persona to begin</h2>
+                    <p class="muted-text">
+                        Provenance uses simulated personas for access-controlled research workspaces.
+                        Select a persona from the top bar dropdown or choose one below to explore the ecosystem.
+                    </p>
+                    <div class="persona-quick-grid">
+                        {% for u in all_users %}
+                            <a href="/switch/{{ u.id }}" class="persona-quick-btn">
+                                <span class="quick-name">{{ u.name }}</span>
+                                <span class="role-chip role-{{ u.role }}">{{ u.role }}</span>
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </section>
+
+    <!-- System Status Panel -->
+    <aside class="status-section">
+        <div class="panel status-panel">
+            <div class="panel-header">
+                <h3>System Status</h3>
+                <span class="badge-dot pulse-green"></span>
+            </div>
+
+            <div class="status-chips-list">
+                <div class="status-chip-row">
+                    <span class="status-label">Database</span>
+                    <span class="chip chip-lime">Database OK</span>
+                </div>
+                <div class="status-chip-row">
+                    <span class="status-label">Seeded Users</span>
+                    <span class="chip chip-cyan">Users: {{ user_count }}</span>
+                </div>
+                <div class="status-chip-row">
+                    <span class="status-label">Ledger Engine</span>
+                    <span class="chip chip-amber">not started yet</span>
+                </div>
+                <div class="status-chip-row">
+                    <span class="status-label">AI Gateway</span>
+                    <span class="chip chip-amber">offline (S4)</span>
+                </div>
+            </div>
+
+            <div class="panel-actions">
+                <button disabled class="btn btn-secondary btn-block btn-disabled" title="Available in Module S6">
+                    Story Mode (coming in S6)
+                </button>
+            </div>
+
+            <div class="panel-footer-note">
+                <span class="muted-text">Module S0: Core architecture skeleton initialized.</span>
+            </div>
+        </div>
+    </aside>
+</div>
+{% endblock %}

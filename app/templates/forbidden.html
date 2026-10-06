@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}403 Forbidden - Provenance{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="card error-card">
+        <div class="error-header">
+            <span class="chip chip-red">HTTP 403 FORBIDDEN</span>
+            <h2>Access Restricted</h2>
+        </div>
+
+        <div class="error-body">
+            <p class="error-lead">
+                You do not have the required permissions to access this resource.
+            </p>
+            {% if detail %}
+                <div class="error-detail-box">
+                    <code>{{ detail }}</code>
+                </div>
+            {% endif %}
+
+            <div class="error-context">
+                <p>
+                    {% if user %}
+                        Current persona: <strong>{{ user.name }}</strong> (Role: <span class="role-chip role-{{ user.role }}">{{ user.role }}</span>).
+                        This route enforces strict role-based access control (RBAC) on the server.
+                    {% else %}
+                        No persona is currently active. Please select an authorized persona to proceed.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <div class="error-actions">
+            <a href="/" class="btn btn-primary">Return to Home</a>
+            {% if all_users %}
+                <span class="muted-text">or switch to an authorized persona from the top bar.</span>
+            {% endif %}
+        </div>
+
+        <div class="card-footer">
+            <span class="mock-notice">SERVER ENFORCED: Access control is evaluated server-side per RULES.md rule (c).</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

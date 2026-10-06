@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}New Project — Provenance{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="/projects">Projects</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Post a Problem</span>
+</div>
+
+<div class="page-header">
+    <h1>Post a Research Problem</h1>
+</div>
+
+{% if error %}
+<div class="form-error">
+    <span>⚠</span> {{ error }}
+</div>
+{% endif %}
+
+<div class="form-card">
+    <form method="post" action="/projects/new">
+        <div class="form-group">
+            <label class="form-label" for="title">Project Title *</label>
+            <input class="form-input" type="text" id="title" name="title"
+                   value="{{ form.title or '' }}" required
+                   placeholder="E.g. Low-cost detection of diabetic retinopathy…">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="engagement_model">Engagement Model *</label>
+            <select class="form-select" id="engagement_model" name="engagement_model" required>
+                <option value="">— Choose —</option>
+                <option value="funded" {% if form.engagement_model == 'funded' %}selected{% endif %}>
+                    Funded (milestone payments via escrow)
+                </option>
+                <option value="stipend" {% if form.engagement_model == 'stipend' %}selected{% endif %}>
+                    Stipend (fixed amount stated up front)
+                </option>
+                <option value="knowledge_sharing" {% if form.engagement_model == 'knowledge_sharing' %}selected{% endif %}>
+                    Knowledge Sharing — UNPAID (certificates, badges, co-authorship)
+                </option>
+                <option value="institutional_credit" {% if form.engagement_model == 'institutional_credit' %}selected{% endif %}>
+                    Institutional Credit — UNPAID
+                </option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="sensitivity_label">Sensitivity Label *</label>
+            <select class="form-select" id="sensitivity_label" name="sensitivity_label" required>
+                <option value="">— Choose —</option>
+                <option value="public" {% if form.sensitivity_label == 'public' %}selected{% endif %}>Public</option>
+                <option value="internal" {% if form.sensitivity_label == 'internal' %}selected{% endif %}>Internal</option>
+                <option value="confidential" {% if form.sensitivity_label == 'confidential' %}selected{% endif %}>Confidential</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="public_summary">Public Summary *</label>
+            <textarea class="form-textarea" id="public_summary" name="public_summary"
+                      rows="4" required
+                      placeholder="2–3 sentences describing the research challenge. Visible to everyone.">{{ form.public_summary or '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="confidential_brief">Confidential Brief *</label>
+            <textarea class="form-textarea" id="confidential_brief" name="confidential_brief"
+                      rows="6" required
+                      placeholder="Technical details, datasets, hardware specs. Only visible to accepted members.">{{ form.confidential_brief or '' }}</textarea>
+            <p class="form-hint">Only the owning sponsor and accepted members can read this.</p>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="rewards">Rewards / Compensation</label>
+            <textarea class="form-textarea" id="rewards" name="rewards"
+                      rows="2"
+                      placeholder="For funded: escrow amount and split. For unpaid: 'UNPAID: recognition only'.">{{ form.rewards or '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="ip_publication">IP &amp; Publication Terms</label>
+            <textarea class="form-textarea" id="ip_publication" name="ip_publication"
+                      rows="2"
+                      placeholder="E.g. Open-access publication with named co-authorship.">{{ form.ip_publication or '' }}</textarea>
+        </div>
+
+        <div style="display:flex;gap:1rem;margin-top:1.5rem;flex-wrap:wrap">
+            <button type="submit" class="btn btn-primary">Post Project →</button>
+            <a href="/projects" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

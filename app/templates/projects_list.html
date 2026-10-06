@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Projects — Provenance{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Research Projects</h1>
+    {% if user and user.role == 'sponsor' %}
+        <a href="/projects/new" class="btn btn-primary">＋ Post a Problem</a>
+    {% endif %}
+</div>
+
+{% if not projects %}
+    <div class="card empty-card">
+        <div class="empty-state">
+            <div class="empty-icon">🔬</div>
+            <h2>No projects yet</h2>
+            <p class="muted-text">Sponsors can post research problems for experts and students to join.</p>
+        </div>
+    </div>
+{% else %}
+    <div class="projects-grid">
+        {% for p in projects %}
+        {% set state = membership_states[p.id] %}
+        <div class="project-card">
+            <a href="/projects/{{ p.id }}" class="project-card-title">{{ p.title }}</a>
+
+            <div class="project-card-chips">
+                {# Engagement model chip #}
+                {% if p.engagement_model in ('knowledge_sharing', 'institutional_credit') %}
+                    <span class="chip chip-cyan">UNPAID</span>
+                {% else %}
+                    <span class="chip chip-amber">FUNDED</span>
+                {% endif %}
+
+                {# Sensitivity chip #}
+                {% if p.sensitivity_label == 'confidential' %}
+                    <span class="chip chip-red">CONFIDENTIAL</span>
+                {% elif p.sensitivity_label == 'internal' %}
+                    <span class="chip chip-amber">INTERNAL</span>
+                {% else %}
+                    <span class="chip chip-lime">PUBLIC</span>
+                {% endif %}
+
+                {# Charter version chip #}
+                <span class="chip chip-cyan">Charter v{{ p.current_charter_version }}</span>
+
+                {# Membership state chip #}
+                {% if state == 'member' %}
+                    <span class="chip chip-lime">Member</span>
+                {% elif state == 'reaccept_required' %}
+                    <span class="chip chip-amber">Re-accept Required</span>
+                {% elif user %}
+                    <span class="chip" style="background:rgba(138,151,166,0.1);color:var(--muted);border:1px solid rgba(138,151,166,0.3)">Not Joined</span>
+                {% endif %}
+            </div>
+
+            <div class="project-card-meta">
+                Sponsored by <strong>{{ p.sponsor_name }}</strong>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

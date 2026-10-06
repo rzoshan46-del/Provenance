@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Join {{ project.title }} — Provenance{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="/projects">Projects</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="/projects/{{ project.id }}">{{ project.title }}</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Join</span>
+</div>
+
+<div class="page-header">
+    <h1>Accept Charter &amp; Join Project</h1>
+</div>
+
+{% if error %}
+<div class="form-error">
+    <span>⚠</span> {{ error }}
+</div>
+{% endif %}
+
+<div style="max-width:760px">
+    {# Project header #}
+    <div class="card" style="margin-bottom:1.5rem">
+        <div class="project-card-chips" style="margin-bottom:0.6rem">
+            {% if project.engagement_model in ('knowledge_sharing', 'institutional_credit') %}
+                <span class="chip chip-cyan">UNPAID</span>
+            {% else %}
+                <span class="chip chip-amber">FUNDED</span>
+            {% endif %}
+            <span class="chip chip-cyan">Charter v{{ project.current_charter_version }}</span>
+        </div>
+        <h2 style="font-size:1.1rem;margin-bottom:0.25rem">{{ project.title }}</h2>
+        <p class="muted-text">Sponsored by {{ sponsor.name }}</p>
+    </div>
+
+    {# Full charter text #}
+    <h3 style="margin-bottom:0.75rem;font-size:1rem">Charter v{{ charter.version }}</h3>
+    <div class="charter-box">
+        <table class="charter-terms-table" style="width:100%">
+            {% for key, value in charter_terms.items() %}
+            <tr>
+                <td style="color:var(--muted);font-weight:600;padding:0.5rem 0.75rem 0.5rem 0;white-space:nowrap;vertical-align:top;width:180px">
+                    {{ key | replace('_', ' ') | title }}
+                </td>
+                <td style="padding:0.5rem 0;color:#c7d2de;vertical-align:top;line-height:1.6">
+                    {{ value }}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        <p style="font-size:0.75rem;color:var(--muted);margin-top:1rem">
+            Hash: <span class="hash-chip" title="{{ charter.hash }}">{{ charter.hash[:12] }}…</span>
+        </p>
+    </div>
+
+    <form method="post" action="/projects/{{ project.id }}/join">
+
+        {# Engagement model acknowledgement — separate highlighted box #}
+        <div class="engagement-ack-box {% if project.engagement_model in ('knowledge_sharing', 'institutional_credit') %}unpaid{% endif %}"
+             style="margin-bottom:1rem">
+            <p style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;
+                      color:{% if project.engagement_model in ('knowledge_sharing','institutional_credit') %}var(--info){% else %}var(--pending){% endif %}">
+                Engagement Model Acknowledgement
+            </p>
+            <label class="checkbox-label">
+                <input type="checkbox" name="ack_engagement_model" value="1"
+                       {% if form_ack_engagement %}checked{% endif %} required>
+                <span>
+                    {% if project.engagement_model == 'funded' %}
+                        I understand this project is <strong>FUNDED through milestone escrow</strong>.
+                        Rewards are distributed per the charter split engine after milestone acceptance.
+                    {% elif project.engagement_model == 'stipend' %}
+                        I understand this project offers a <strong>fixed stipend</strong> as stated in the charter.
+                    {% elif project.engagement_model == 'knowledge_sharing' %}
+                        I understand this project is <strong>UNPAID</strong>.
+                        Participation provides recognition (certificates, badges, co-authorship) with no payment.
+                    {% elif project.engagement_model == 'institutional_credit' %}
+                        I understand this project is <strong>UNPAID</strong>.
+                        Participation provides institutional credit with no payment.
+                    {% endif %}
+                </span>
+            </label>
+        </div>
+
+        {# Charter acceptance checkbox #}
+        <div class="card" style="margin-bottom:1.25rem;padding:1rem 1.25rem">
+            <label class="checkbox-label">
+                <input type="checkbox" name="accept_charter" value="1"
+                       {% if form_accept_charter %}checked{% endif %} required>
+                <span>I have read and accept <strong>Charter version {{ charter.version }}</strong>
+                      for this project (hash: <span class="hash-chip" title="{{ charter.hash }}">{{ charter.hash[:12] }}…</span>).
+                </span>
+            </label>
+        </div>
+
+        <div style="display:flex;gap:1rem;flex-wrap:wrap">
+            <button type="submit" class="btn btn-primary">
+                {% if state == 'reaccept_required' %}Re-accept Charter v{{ project.current_charter_version }}{% else %}Join Project{% endif %}
+            </button>
+            <a href="/projects/{{ project.id }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
