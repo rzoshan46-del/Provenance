@@ -179,9 +179,12 @@
         {% endif %}
 
         {# ── Milestones ── #}
-        <div class="section-heading">
-            <h2>Milestones</h2>
-            <span class="vis-chip vis-members">👥 Members + Admin</span>
+        <div class="section-heading" style="display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:center;gap:0.75rem">
+                <h2>Milestones</h2>
+                <span class="vis-chip vis-members">👥 Members + Admin</span>
+            </div>
+            <a href="/projects/{{ project.id }}/milestones" class="btn btn-secondary" style="font-size:0.8rem;padding:0.3rem 0.6rem">View Milestones &amp; Work →</a>
         </div>
         {% if can_see_milestones %}
             {% if milestones %}
@@ -277,8 +280,17 @@
                 <span class="eyebrow">Quick Links</span>
             </div>
             <div style="display:flex;flex-direction:column;gap:0.6rem">
+                <a href="/projects/{{ project.id }}/milestones" class="btn btn-secondary btn-block">Milestones &amp; Work</a>
                 <a href="/projects/{{ project.id }}/charter" class="btn btn-secondary btn-block">Charter History</a>
                 <a href="/projects/{{ project.id }}/visibility" class="btn btn-secondary btn-block">Visibility Matrix</a>
+                {% if user and (user.id == project.sponsor_id or user.role == 'admin') %}
+                    <a href="/projects/{{ project.id }}/scoping" class="btn btn-secondary btn-block" style="color:var(--verified)">✦ AI Scoping</a>
+                    <a href="/projects/{{ project.id }}/matching" class="btn btn-secondary btn-block" style="color:var(--info)">⚡ AI Matching</a>
+                {% endif %}
+                {% if can_see_milestones %}
+                    <a href="/projects/{{ project.id }}/workspace" class="btn btn-secondary btn-block" style="color:var(--pending)">🤖 Workspace Agent</a>
+                    <a href="/projects/{{ project.id }}/firewall" class="btn btn-secondary btn-block" style="color:var(--muted)">🛡 AI Firewall</a>
+                {% endif %}
                 {% if user and user.id == project.sponsor_id %}
                     <a href="/projects/{{ project.id }}/charter" class="btn btn-primary btn-block">Publish New Charter</a>
                 {% endif %}

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}{{ user.name }} — Profile{% endblock %}
+{% block content %}
+
+<div style="max-width:900px;margin:0 auto;padding:2.5rem 0 4rem">
+
+    {# ── Identity row ── #}
+    <div style="display:flex;align-items:flex-start;gap:1.5rem;flex-wrap:wrap;margin-bottom:2.5rem;padding-bottom:2rem;border-bottom:1px solid var(--line)">
+        <div style="width:4rem;height:4rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;border:2px solid var(--line);
+            {% if user.role == 'sponsor' %}background:rgba(255,176,32,.12){% elif user.role == 'expert' %}background:rgba(61,214,255,.12){% elif user.role == 'admin' %}background:rgba(255,77,79,.12){% else %}background:rgba(198,255,61,.12){% endif %}">
+            {% if user.role=='sponsor' %}🏛{% elif user.role=='expert' %}🔬{% elif user.role=='admin' %}🛡{% else %}🎓{% endif %}
+        </div>
+        <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.3rem">
+                <h1 style="font-size:1.6rem;font-weight:900;letter-spacing:-.04em;margin:0">{{ user.name }}</h1>
+                <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
+                {% if user.is_minor %}<span class="chip chip-amber" style="font-size:.7rem">MINOR</span>{% endif %}
+            </div>
+            <div style="font-size:.85rem;color:var(--muted);margin-bottom:.6rem">
+                {{ user.institution or "Independent Researcher" }}
+                &nbsp;·&nbsp; Level {{ user.verification_level }} Verified
+                &nbsp;·&nbsp; {{ user.email }}
+            </div>
+            {% if user.bio %}<p style="font-size:.88rem;color:var(--muted);max-width:520px;line-height:1.6;margin:0">{{ user.bio }}</p>{% endif %}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:2.5rem;font-weight:900;font-family:var(--font-mono);color:var(--verified);line-height:1">{{ cr_total }}</div>
+            <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:.1rem">Total Credits</div>
+            <div style="font-size:.7rem;color:var(--muted);margin-top:.25rem">on-chain · tamper-proof</div>
+        </div>
+    </div>
+
+    {# ── Two-column grid ── #}
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:2rem;align-items:start">
+
+        {# Left: credit history + memberships + credentials #}
+        <div style="display:flex;flex-direction:column;gap:2rem">
+
+            {# Credit breakdown #}
+            {% if cr_break %}
+            <section>
+                <h2 style="font-size:1rem;font-weight:800;letter-spacing:-.02em;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem">
+                    Credit Breakdown
+                    <span style="font-size:.7rem;font-weight:500;color:var(--muted);font-family:var(--font-mono)">computed from ledger</span>
+                </h2>
+                <div style="display:flex;flex-direction:column;gap:.5rem">
+                    {% set action_labels = {
+                        'contribution_submitted': ('📝','Contribution submitted','20 cr each'),
+                        'contribution_reviewed':  ('✅','Work reviewed & verified','30 cr each'),
+                        'milestone_accepted':     ('🏆','Milestone accepted','50 cr each'),
+                        'agent_action_approved':  ('🤖','AI draft approved','15 cr each'),
+                        'charter_accepted':       ('📜','Charter signed','5 cr each')
+                    } %}
+                    {% for key, val in cr_break.items() %}
+                    {% set info = action_labels.get(key, ('·', key, '')) %}
+                    <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .85rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md)">
+                        <span style="font-size:1rem;width:1.5rem;text-align:center">{{ info[0] }}</span>
+                        <span style="flex:1;font-size:.85rem">{{ info[1] }}</span>
+                        <span style="font-size:.75rem;color:var(--muted)">{{ info[2] }}</span>
+                        <span style="font-family:var(--font-mono);font-size:.9rem;font-weight:800;color:var(--verified);min-width:3.5rem;text-align:right">{{ val }} cr</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            {# Credit history #}
+            {% if cr_hist %}
+            <section>
+                <h2 style="font-size:1rem;font-weight:800;letter-spacing:-.02em;margin-bottom:1rem">Recent Credit Events</h2>
+                <div style="display:flex;flex-direction:column;gap:.35rem">
+                    {% for ev in cr_hist[:20] %}
+                    <div style="display:flex;align-items:center;gap:.75rem;padding:.5rem .85rem;border-bottom:1px solid rgba(35,42,51,.6)">
+                        <span style="font-family:var(--font-mono);font-size:.72rem;color:var(--muted);min-width:6.5rem">{{ ev.timestamp[:16] }}</span>
+                        <span style="flex:1;font-size:.83rem">{{ ev.action | replace('_',' ') }}</span>
+                        <span style="font-size:.75rem;color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ ev.project_title }}">{{ ev.project_title }}</span>
+                        <span style="font-family:var(--font-mono);font-size:.85rem;font-weight:700;color:var(--verified);min-width:3rem;text-align:right">+{{ ev.pts }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% else %}
+            <section>
+                <h2 style="font-size:1rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.75rem">Credit History</h2>
+                <p class="muted-text" style="font-size:.88rem">No credits earned yet. Submit contributions, review work, or sign a charter to start earning.</p>
+            </section>
+            {% endif %}
+
+            {# Memberships #}
+            <section>
+                <h2 style="font-size:1rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.85rem">Active Memberships</h2>
+                {% if memberships %}
+                <div style="display:flex;flex-direction:column;gap:.6rem">
+                    {% for m in memberships %}
+                    <a href="/projects/{{ m.id }}" style="display:flex;align-items:center;gap:.75rem;padding:.7rem .9rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);text-decoration:none;color:var(--text);transition:border-color .15s" onmouseover="this.style.borderColor='rgba(198,255,61,.3)'" onmouseout="this.style.borderColor='var(--line)'">
+                        <span style="flex:1;font-size:.88rem;font-weight:600;line-height:1.3">{{ m.title }}</span>
+                        {% if m.engagement_model in ('funded','stipend') %}
+                            <span class="chip chip-amber" style="font-size:.68rem">FUNDED</span>
+                        {% else %}
+                            <span class="chip chip-cyan" style="font-size:.68rem">UNPAID</span>
+                        {% endif %}
+                        <span style="font-size:.7rem;color:var(--muted)">→</span>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="muted-text" style="font-size:.88rem">Not a member of any projects yet. <a href="/projects" style="color:var(--verified)">Browse projects →</a></p>
+                {% endif %}
+            </section>
+
+            {# Credentials #}
+            <section>
+                <h2 style="font-size:1rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.85rem">Credentials Issued</h2>
+                {% if my_creds %}
+                <div style="display:flex;flex-direction:column;gap:.6rem">
+                    {% for c in my_creds %}
+                    <div style="padding:.8rem .9rem;background:rgba(198,255,61,.04);border:1px solid rgba(198,255,61,.15);border-radius:var(--radius-md)">
+                        <div style="font-size:.88rem;font-weight:700;margin-bottom:.25rem">{{ c.milestone_title }}</div>
+                        <div style="font-size:.75rem;color:var(--muted);margin-bottom:.4rem">{{ c.project_title }}</div>
+                        <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--muted)">{{ c.credential_hash[:32] }}…</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="muted-text" style="font-size:.88rem">No credentials yet. Credits accumulate as you complete milestones.</p>
+                {% endif %}
+            </section>
+        </div>
+
+        {# Right: skills + quick actions #}
+        <div style="position:sticky;top:1.5rem;display:flex;flex-direction:column;gap:1.25rem">
+
+            {# Skills #}
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:1.1rem">
+                <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">Verified Skills</div>
+                {% if skills %}
+                <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+                    {% for s in skills %}<span class="skill-chip">{{ s }}</span>{% endfor %}
+                </div>
+                {% else %}
+                <span class="muted-text" style="font-size:.83rem">No skills listed</span>
+                {% endif %}
+            </div>
+
+            {# Credit summary card #}
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:1.1rem">
+                <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem">Your Score</div>
+                <div style="font-size:2.8rem;font-weight:900;font-family:var(--font-mono);color:var(--verified);line-height:1;margin-bottom:.2rem">{{ cr_total }}</div>
+                <div style="font-size:.72rem;color:var(--muted);margin-bottom:1rem">contribution credits</div>
+                {% if cr_total >= 100 %}
+                    <span style="font-size:.78rem;font-weight:700;color:var(--verified)">🏆 Exceptional contributor</span>
+                {% elif cr_total >= 50 %}
+                    <span style="font-size:.78rem;font-weight:700;color:var(--info)">⚡ Strong contributor</span>
+                {% elif cr_total > 0 %}
+                    <span style="font-size:.78rem;font-weight:700;color:var(--pending)">📈 Getting started</span>
+                {% else %}
+                    <span style="font-size:.78rem;color:var(--muted)">No credits yet</span>
+                {% endif %}
+            </div>
+
+            {# Quick links #}
+            <div style="display:flex;flex-direction:column;gap:.5rem">
+                <a href="/projects" class="btn btn-secondary" style="text-align:center;font-size:.83rem">Browse Projects</a>
+                <a href="/credentials" class="btn btn-secondary" style="text-align:center;font-size:.83rem">All Credentials</a>
+                <a href="/ledger" class="btn btn-secondary" style="text-align:center;font-size:.83rem">Ledger</a>
+                <a href="/switch-clear" class="btn btn-secondary" style="text-align:center;font-size:.83rem;color:var(--muted)">Sign Out</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

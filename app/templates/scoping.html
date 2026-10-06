@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}AI Scoping — {{ project.title }} — Provenance{% endblock %}
+{% block content %}
+
+<div class="breadcrumb">
+    <a href="/projects">Projects</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="/projects/{{ project.id }}">{{ project.title }}</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>AI Scoping</span>
+</div>
+
+{% if error %}
+<div class="alert alert-red" style="margin-bottom:1.25rem">
+    <strong>Error ({{ error_code }}):</strong> {{ error }}
+</div>
+{% endif %}
+
+{% if not can_scope %}
+{# ── Locked card for non-sponsor/admin ── #}
+<div class="card locked-card" style="margin-top:1.5rem">
+    <div class="locked-card-inner">
+        <span class="lock-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+        </span>
+        <div class="locked-card-text">
+            <strong>Access restricted</strong>
+            AI Scoping is only available to the owning sponsor and admin.
+        </div>
+    </div>
+</div>
+{% else %}
+
+{# ── AI-proposed, human-approved banner ── #}
+<div class="ai-proposed-banner">
+    ✦ AI-proposed, human-approved — the scoping agent reads the confidential brief and proposes milestones; a human sponsor approves each one before work begins.
+</div>
+
+{# ── Agent info bar ── #}
+{% if ai_call_info %}
+<div class="agent-info-bar">
+    <span style="color:var(--muted)">Agent:</span>
+    <strong>{{ ai_call_info.agent_name }}</strong>
+    <span style="color:var(--muted)">·</span>
+    <span style="color:var(--muted)">Owner:</span>
+    <strong>{{ ai_call_info.owner_name }}</strong>
+    <span style="color:var(--muted)">·</span>
+    <span style="color:var(--muted)">Route:</span>
+    {% if ai_call_info.intended_route and ai_call_info.actual_route and ai_call_info.intended_route != ai_call_info.actual_route %}
+        <span class="route-chip route-{{ ai_call_info.intended_route }}">{{ ai_call_info.intended_route }}</span>
+        <span style="color:var(--muted)">→</span>
+        <span class="route-chip route-{{ ai_call_info.actual_route }}">{{ ai_call_info.actual_route }}</span>
+        {% if ai_call_info.fallback_reason %}
+            <span class="muted-text">({{ ai_call_info.fallback_reason }})</span>
+        {% endif %}
+    {% else %}
+        <span class="route-chip route-{{ ai_call_info.actual_route or 'canned' }}">{{ ai_call_info.actual_route or 'canned' }}</span>
+    {% endif %}
+</div>
+{% endif %}
+
+{# ── Run Scoping form ── #}
+<div class="card" style="margin-bottom:1.5rem">
+    <div class="card-header"><span class="eyebrow">Run Scoping Agent</span></div>
+    <form method="POST" action="/projects/{{ project.id }}/scoping" style="display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-top:0.75rem">
+        {% if is_funded %}
+        <div style="flex:1;min-width:180px">
+            <label class="meta-label" for="budget_inr">Budget (INR, integer)</label>
+            <input type="number" id="budget_inr" name="budget_inr" class="form-control"
+                   placeholder="e.g. 100000" min="1" required style="margin-top:0.3rem">
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">✦ Ask the Scoping Agent</button>
+    </form>
+    {% if not is_funded %}
+    <p class="muted-text" style="margin-top:0.5rem;font-size:0.82rem">Non-funded project: amounts will be 0 (recognition only).</p>
+    {% endif %}
+</div>
+
+{# ── Proposed milestones ── #}
+{% if proposed_milestones %}
+<h2 style="font-size:1.15rem;margin-bottom:0.85rem">
+    Proposed Milestones
+    <span class="chip chip-amber" style="font-size:0.75rem;vertical-align:middle">{{ proposed_milestones | length }} awaiting approval</span>
+</h2>
+{% for ms in proposed_milestones %}
+<div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+        <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;flex-wrap:wrap">
+                <span class="chip chip-amber">PROPOSED</span>
+                {% if ms.required_skills %}
+                    {% set skills = ms.required_skills | from_json %}
+                    {% for sk in skills %}
+                        <span class="chip" style="background:rgba(61,214,255,0.1);color:var(--info);border:1px solid rgba(61,214,255,0.25);font-size:0.72rem">{{ sk }}</span>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            <h3 style="font-size:1rem;margin-bottom:0.4rem">{{ ms.title }}</h3>
+            <p class="muted-text" style="font-size:0.84rem;margin-bottom:0.3rem"><strong style="color:var(--text)">Deliverables:</strong> {{ ms.deliverables }}</p>
+            <p class="muted-text" style="font-size:0.84rem"><strong style="color:var(--text)">Acceptance criteria:</strong> {{ ms.acceptance_criteria }}</p>
+        </div>
+        {# Approve form #}
+        <form method="POST" action="/milestones/{{ ms.id }}/approve-ui" style="display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end;min-width:170px">
+            {% if is_funded %}
+            <div style="width:100%">
+                <label class="meta-label" style="font-size:0.72rem">Amount (INR)</label>
+                <input type="number" name="amount_inr" class="form-control" value="{{ ms.amount_inr }}"
+                       min="0" style="margin-top:0.2rem;width:100%">
+            </div>
+            {% else %}
+            <input type="hidden" name="amount_inr" value="0">
+            {% endif %}
+            <button type="submit" class="btn btn-primary" style="width:100%">✓ Approve</button>
+        </form>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="card" style="text-align:center;padding:2rem;margin-bottom:1.5rem">
+    <p class="muted-text">No proposed milestones yet. Run the scoping agent above.</p>
+</div>
+{% endif %}
+
+{# ── Open (approved) milestones ── #}
+{% if open_milestones %}
+<h2 style="font-size:1.15rem;margin-bottom:0.85rem;margin-top:1rem">
+    Approved Milestones
+    <span class="chip chip-lime" style="font-size:0.75rem;vertical-align:middle">{{ open_milestones | length }} open</span>
+</h2>
+{% for ms in open_milestones %}
+<div class="card" style="margin-bottom:0.75rem;opacity:0.85">
+    <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+        <span class="chip chip-lime">OPEN</span>
+        <strong>{{ ms.title }}</strong>
+        {% if is_funded %}
+        <span class="muted-text" style="font-family:var(--font-mono);font-size:0.84rem">{{ ms.amount_inr | inr }}</span>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endif %}{# can_scope #}
+{% endblock %}

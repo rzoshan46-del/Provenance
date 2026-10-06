@@ -13,3 +13,7 @@ All contributors and AI agents working on this codebase must strictly observe th
 - **(i)** Anything mocked is labelled "MOCKED: production would use X" in code comments and in the UI.
 - **(j)** Synthetic data only. No real personal data or real payment details.
 - **(k)** Append a line to AI_USAGE.md describing what you generated.
+- **(n)** Money is integer rupees; all splitting goes through app/splits.py; escrow state changes go through escrow_transition only; never use floats for money.
+- **(o)** Every model call goes through app/ai/gateway.py, and no other file imports httpx.
+- **(p)** API keys come only from environment variables and are never printed, logged or committed.
+

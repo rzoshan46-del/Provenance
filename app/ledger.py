@@ -348,9 +348,14 @@ def list_entries(
         if project_id is not None:
             rows = conn.execute(
                 """
-                SELECT le.*, u.name AS actor_name
+                SELECT le.*,
+                    CASE
+                        WHEN le.actor_type = 'agent' THEN a.name
+                        ELSE u.name
+                    END AS actor_name
                 FROM ledger_entries le
                 LEFT JOIN users u ON u.id = le.actor_id
+                LEFT JOIN agents a ON a.id = le.actor_id
                 WHERE le.project_id = ?
                 ORDER BY le.id ASC
                 LIMIT ?
@@ -360,9 +365,14 @@ def list_entries(
         else:
             rows = conn.execute(
                 """
-                SELECT le.*, u.name AS actor_name
+                SELECT le.*,
+                    CASE
+                        WHEN le.actor_type = 'agent' THEN a.name
+                        ELSE u.name
+                    END AS actor_name
                 FROM ledger_entries le
                 LEFT JOIN users u ON u.id = le.actor_id
+                LEFT JOIN agents a ON a.id = le.actor_id
                 ORDER BY le.id ASC
                 LIMIT ?
                 """,

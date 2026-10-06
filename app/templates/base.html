@@ -9,35 +9,38 @@
 <body>
     <header class="topbar">
         <div class="topbar-brand">
-            <a href="/" class="brand-logo">Provenance</a>
-            <span class="brand-tagline">Many minds. One mission. Every contribution counted.</span>
+            <a href="/" class="brand-logo">⬡ Provenance</a>
         </div>
-        
+
         <nav class="topbar-nav">
             <a href="/" class="nav-link">Home</a>
             <a href="/projects" class="nav-link">Projects</a>
             <a href="/ledger" class="nav-link">Ledger</a>
+            <a href="/credentials" class="nav-link">Credentials</a>
+            {% if user and user.role == 'admin' %}
             <a href="/admin" class="nav-link">Admin</a>
+            {% endif %}
         </nav>
 
-        <div class="persona-switcher">
-            <label for="persona-select" class="persona-label">Persona:</label>
-            <select id="persona-select" class="persona-select" onchange="if(this.value){ window.location.href='/switch/' + this.value; }">
-                <option value="">-- Choose Persona --</option>
-                {% if all_users %}
+        <div class="topbar-right">
+            {% if user %}
+                {# Credit badge #}
+                <a href="/me" class="credit-badge" title="Your contribution credits">
+                    ⬡ {{ user_credits(user.id) }} cr
+                </a>
+                {# Persona switcher #}
+                <select class="persona-select" onchange="if(this.value){ window.location.href='/switch/' + this.value; }">
                     {% for u in all_users %}
-                        <option value="{{ u.id }}" {% if user and user.id == u.id %}selected{% endif %}>
-                            {{ u.name }} ({{ u.role }})
+                        <option value="{{ u.id }}" {% if user.id == u.id %}selected{% endif %}>
+                            {{ u.name }}
                         </option>
                     {% endfor %}
-                {% endif %}
-            </select>
-
-            {% if user %}
+                </select>
                 <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
-                <a href="/switch-clear" class="clear-persona-link" title="Clear persona">✕</a>
+                <a href="/me" class="nav-link" style="font-size:.8rem">Profile</a>
+                <a href="/switch-clear" class="nav-link" style="font-size:.8rem;color:var(--muted)" title="Sign out">Sign out</a>
             {% else %}
-                <span class="role-chip role-none">ANONYMOUS</span>
+                <a href="/login" class="btn-signin">Sign In →</a>
             {% endif %}
         </div>
     </header>
@@ -48,10 +51,13 @@
 
     <footer class="footer">
         <div class="footer-content">
-            <span>Provenance Collaborative Research Ecosystem &bull; Gardenia 2K26</span>
-            <span class="mock-badge">MOCKED: simulated persona auth &amp; synthetic identities</span>
+            <span>⬡ Provenance &bull; Gardenia 2K26</span>
+            <a href="/ledger" style="color:var(--muted);text-decoration:none;font-size:.78rem">Ledger ⛓</a>
+            <span class="mock-badge">MOCKED: synthetic personas &amp; simulated auth</span>
         </div>
     </footer>
+
     {% block scripts %}{% endblock %}
+    <script src="/static/chatbot.js"></script>
 </body>
 </html>

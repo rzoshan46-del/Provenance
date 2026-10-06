@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}Milestones &amp; Work — {{ project.title }} — Provenance{% endblock %}
+{% block content %}
+
+<div class="breadcrumb">
+    <a href="/projects">Projects</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="/projects/{{ project.id }}">{{ project.title }}</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Milestones &amp; Work</span>
+</div>
+
+{% if error %}
+<div class="alert alert-red" style="margin-bottom:1.5rem">
+    <strong>Error:</strong> {{ error }}
+</div>
+{% endif %}
+
+{% if not can_see_milestones %}
+<div class="card locked-card" style="margin-top:1.5rem">
+    <div class="locked-card-inner">
+        <span class="lock-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+        </span>
+        <div class="locked-card-text">
+            <h3 style="margin-bottom:0.3rem">Milestones &amp; Work Locked</h3>
+            <p>Hidden until you accept the charter. Active project members and sponsors can view deliverables, submit contributions, and review work.</p>
+            {% if user and user.role in ('student', 'expert') %}
+                <a href="/projects/{{ project.id }}/join" class="btn btn-primary" style="margin-top:0.75rem;display:inline-block">Join Project &amp; Accept Charter →</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% else %}
+
+{# ── Header ── #}
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+    <div>
+        <div class="project-card-chips" style="margin-bottom:0.5rem">
+            {% if is_funded %}
+                <span class="chip chip-amber">FUNDED</span>
+            {% else %}
+                <span class="chip chip-cyan">UNPAID: recognition only</span>
+            {% endif %}
+            <span class="chip chip-cyan">Charter v{{ project.current_charter_version }}</span>
+            <a href="/ledger?project_id={{ project.id }}" class="chip chip-lime" style="text-decoration:none">View Project Ledger</a>
+        </div>
+        <h1 style="font-size:1.6rem;line-height:1.3">{{ project.title }}</h1>
+        <p class="muted-text" style="margin-top:0.3rem">
+            Sponsor: <strong style="color:var(--text)">{{ sponsor.name }}</strong>
+        </p>
+    </div>
+
+    {% if is_sponsor %}
+    <div>
+        <details class="dropdown-details" style="position:relative">
+            <summary class="btn btn-primary" style="cursor:pointer">+ Add Milestone</summary>
+            <div class="card" style="position:absolute;right:0;top:100%;margin-top:0.5rem;width:340px;z-index:20;background:var(--panel);box-shadow:0 8px 24px rgba(0,0,0,0.5)">
+                <h3 style="font-size:1rem;margin-bottom:0.75rem">New Milestone</h3>
+                <form method="POST" action="/projects/{{ project.id }}/milestones" style="display:flex;flex-direction:column;gap:0.75rem">
+                    <div>
+                        <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.25rem">Title</label>
+                        <input type="text" name="title" required placeholder="Milestone title" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.25rem">Deliverables</label>
+                        <textarea name="deliverables" required rows="2" placeholder="Required deliverables" style="width:100%"></textarea>
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.25rem">Acceptance Criteria</label>
+                        <textarea name="acceptance_criteria" required rows="2" placeholder="Acceptance criteria" style="width:100%"></textarea>
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.25rem">Required Skills (comma-separated)</label>
+                        <input type="text" name="required_skills" placeholder="python, pytorch, embedded" style="width:100%">
+                    </div>
+                    {% if is_funded %}
+                    <div>
+                        <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.25rem">Amount (₹)</label>
+                        <input type="number" name="amount_inr" min="1" required placeholder="100000" style="width:100%">
+                    </div>
+                    {% else %}
+                    <input type="hidden" name="amount_inr" value="0">
+                    {% endif %}
+                    <div>
+                        <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.25rem">Acceptance Window (days)</label>
+                        <input type="number" name="acceptance_window_days" value="7" min="1" style="width:100%">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="margin-top:0.25rem">Create Milestone</button>
+                </form>
+            </div>
+        </details>
+    </div>
+    {% endif %}
+</div>
+
+{# ── Milestones List ── #}
+{% if milestones %}
+    <div style="display:flex;flex-direction:column;gap:1.75rem">
+        {% for ms in milestones %}
+        <div class="card milestone-card" id="milestone-{{ ms.id }}">
+            {# Card Header #}
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;border-bottom:1px solid var(--line);padding-bottom:0.75rem">
+                <div>
+                    <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem">
+                        <span class="chip chip-cyan" style="font-weight:700">#{{ ms.id }}</span>
+                        <h2 style="font-size:1.25rem;margin:0">{{ ms.title }}</h2>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+                        <span class="chip chip-amber">{{ ms.status | upper }}</span>
+                        {% if is_funded %}
+                            <span class="chip chip-lime" style="font-family:var(--font-mono);font-weight:700">{{ ms.amount_inr | inr }}</span>
+                        {% endif %}
+                        {% if ms.required_skills %}
+                            {% for sk in ms.required_skills %}
+                                <span class="chip" style="font-size:0.75rem">{{ sk }}</span>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    {% if ms.status == 'accepted' or (is_funded and ms.escrow_state == 'released') %}
+                        <a href="/milestones/{{ ms.id }}/receipt" class="btn btn-secondary" style="font-size:0.82rem">View Verifiable Receipt →</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Escrow / Milestone Stepper #}
+            <div style="margin-bottom:1.25rem">
+                <span class="meta-label" style="display:block;margin-bottom:0.5rem">Workflow Progress</span>
+                {% if is_funded %}
+                    {% set steps = ["draft", "funded", "submitted", "accepted", "released"] %}
+                    {% set current_idx = 0 %}
+                    {% if ms.escrow_state == 'draft' %}{% set current_idx = 0 %}
+                    {% elif ms.escrow_state == 'funded' %}{% set current_idx = 1 %}
+                    {% elif ms.escrow_state == 'submitted' %}{% set current_idx = 2 %}
+                    {% elif ms.escrow_state == 'accepted' %}{% set current_idx = 3 %}
+                    {% elif ms.escrow_state == 'released' %}{% set current_idx = 4 %}
+                    {% endif %}
+                    <div class="escrow-stepper">
+                        {% for st in steps %}
+                            {% set is_past = loop.index0 < current_idx %}
+                            {% set is_curr = loop.index0 == current_idx %}
+                            {% set is_fut = loop.index0 > current_idx %}
+                            <div class="stepper-step {% if is_past %}step-done{% elif is_curr %}step-current{% else %}step-future{% endif %}">
+                                <div class="step-circle">
+                                    {% if is_past %}✓{% else %}{{ loop.index }}{% endif %}
+                                </div>
+                                <span class="step-label">{{ st | upper }}</span>
+                            </div>
+                            {% if not loop.last %}<div class="stepper-line {% if is_past %}line-done{% endif %}"></div>{% endif %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    {% set steps_unpaid = ["open", "submitted", "accepted"] %}
+                    {% set current_idx = 0 %}
+                    {% if ms.status == 'open' %}{% set current_idx = 0 %}
+                    {% elif ms.status == 'submitted' %}{% set current_idx = 1 %}
+                    {% elif ms.status == 'accepted' %}{% set current_idx = 2 %}
+                    {% endif %}
+                    <div class="escrow-stepper">
+                        {% for st in steps_unpaid %}
+                            {% set is_past = loop.index0 < current_idx %}
+                            {% set is_curr = loop.index0 == current_idx %}
+                            <div class="stepper-step {% if is_past %}step-done{% elif is_curr %}step-current{% else %}step-future{% endif %}">
+                                <div class="step-circle">
+                                    {% if is_past %}✓{% else %}{{ loop.index }}{% endif %}
+                                </div>
+                                <span class="step-label">{{ st | upper }}</span>
+                            </div>
+                            {% if not loop.last %}<div class="stepper-line {% if is_past %}line-done{% endif %}"></div>{% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            {# Deliverables & Acceptance Criteria #}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+                <div style="background:rgba(18,22,27,0.7);padding:0.85rem;border-radius:6px;border:1px solid var(--line)">
+                    <span class="meta-label">Deliverables</span>
+                    <p style="margin-top:0.3rem;font-size:0.9rem;line-height:1.5;color:var(--text)">{{ ms.deliverables }}</p>
+                </div>
+                <div style="background:rgba(18,22,27,0.7);padding:0.85rem;border-radius:6px;border:1px solid var(--line)">
+                    <span class="meta-label">Acceptance Criteria</span>
+                    <p style="margin-top:0.3rem;font-size:0.9rem;line-height:1.5;color:var(--text)">{{ ms.acceptance_criteria }}</p>
+                </div>
+            </div>
+
+            {# Milestone Action Bar (Sponsor / Expert Controls) #}
+            {% if is_sponsor or is_expert %}
+            <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap;background:rgba(255,255,255,0.02);padding:0.75rem;border-radius:6px">
+                {% if is_sponsor %}
+                    {% if is_funded and ms.escrow_state == 'draft' %}
+                        <form method="POST" action="/milestones/{{ ms.id }}/fund" style="display:flex;align-items:center;gap:0.5rem">
+                            <button type="submit" class="btn btn-primary">Fund escrow</button>
+                            <span class="muted-text" style="font-size:0.78rem">MOCKED payment: production would use a payment gateway + KYC</span>
+                        </form>
+                    {% endif %}
+
+                    {% if ms.status == 'submitted' %}
+                        <form method="POST" action="/milestones/{{ ms.id }}/accept" onsubmit="return confirm('Accept milestone and release payouts/credentials?');">
+                            <button type="submit" class="btn btn-primary" style="background:#C6FF3D;color:#0B0D10;font-weight:700">Accept and release</button>
+                        </form>
+                    {% endif %}
+                {% endif %}
+
+                {% if is_expert and ms.status == 'open' %}
+                    <form method="POST" action="/milestones/{{ ms.id }}/submit">
+                        <button type="submit" class="btn btn-secondary">Submit milestone for acceptance →</button>
+                    </form>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {# Contributions List #}
+            <div style="border-top:1px solid var(--line);padding-top:1rem">
+                <h3 style="font-size:1.05rem;margin-bottom:0.75rem">Contributions &amp; Artefacts</h3>
+                {% if ms.contributions %}
+                    <div style="display:flex;flex-direction:column;gap:0.85rem">
+                        {% for c in ms.contributions %}
+                        <div class="card" style="background:#12161B;border-color:var(--line);padding:0.85rem">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.4rem">
+                                <div>
+                                    <strong style="color:var(--text);font-size:0.95rem">{{ c.artefact_title }}</strong>
+                                    <span class="muted-text" style="font-size:0.82rem;margin-left:0.5rem">by {{ c.author_name }} ({{ c.author_role }})</span>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:0.4rem">
+                                    {% if c.ai_declaration == 'human' %}
+                                        <span class="chip chip-cyan">Human</span>
+                                    {% elif c.ai_declaration == 'ai_assisted' %}
+                                        <span class="chip chip-amber">AI-assisted</span>
+                                    {% elif c.ai_declaration == 'agent_generated' %}
+                                        <span class="chip chip-lime">Agent-generated</span>
+                                    {% endif %}
+
+                                    {% if c.review_status == 'approved' %}
+                                        <span class="chip chip-lime">APPROVED (Impact: {{ c.impact_weight | int }})</span>
+                                    {% elif c.review_status == 'rejected' %}
+                                        <span class="chip chip-red">REJECTED</span>
+                                    {% else %}
+                                        <span class="chip chip-amber">PENDING REVIEW</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem">
+                                <span title="{{ c.artefact_hash }}" style="font-family:var(--font-mono)">Artefact SHA-256: {{ c.artefact_hash[:12] }}…</span>
+                            </div>
+
+                            <details style="margin-bottom:0.5rem">
+                                <summary style="font-size:0.8rem;cursor:pointer;color:var(--muted)">View Artefact Text</summary>
+                                <pre style="font-family:var(--font-mono);font-size:0.82rem;background:#0B0D10;padding:0.75rem;border-radius:4px;overflow-x:auto;margin-top:0.4rem">{{ c.artefact_text }}</pre>
+                            </details>
+
+                            {# Review Forms for Expert #}
+                            {% if is_expert and c.review_status in ('pending', 'flagged') and user.id != c.author_id %}
+                            <div style="background:rgba(255,255,255,0.03);padding:0.6rem;border-radius:4px;margin-top:0.5rem">
+                                <span class="meta-label" style="margin-bottom:0.35rem;display:block">Expert Review Evaluation</span>
+                                <div style="display:flex;gap:1rem;flex-wrap:wrap">
+                                    <form method="POST" action="/contributions/{{ c.id }}/review" style="display:inline-flex;align-items:center;gap:0.4rem">
+                                        <input type="hidden" name="decision" value="approve">
+                                        <label style="font-size:0.8rem;color:var(--muted)">Impact (1-10):</label>
+                                        <input type="number" name="impact_score" min="1" max="10" value="5" required style="width:55px;padding:0.25rem">
+                                        <input type="text" name="criteria_ref" placeholder="Criteria ref" style="font-size:0.8rem;padding:0.25rem;width:120px">
+                                        <button type="submit" class="btn btn-primary" style="font-size:0.78rem;padding:0.25rem 0.6rem">Approve</button>
+                                    </form>
+
+                                    <form method="POST" action="/contributions/{{ c.id }}/review" style="display:inline-flex;align-items:center;gap:0.4rem">
+                                        <input type="hidden" name="decision" value="reject">
+                                        <input type="text" name="reasons" required placeholder="Rejection reason (required)" style="font-size:0.8rem;padding:0.25rem;width:180px">
+                                        <button type="submit" class="btn btn-secondary" style="font-size:0.78rem;padding:0.25rem 0.6rem;color:#FF4D4F;border-color:rgba(255,77,79,0.4)">Reject</button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="muted-text" style="font-size:0.88rem">No contributions submitted yet.</p>
+                {% endif %}
+
+                {# Member Submit Contribution Form #}
+                {% if is_member and ms.status == 'open' %}
+                    {% if is_funded and ms.escrow_state != 'funded' %}
+                        <div class="alert alert-amber" style="margin-top:1rem;font-size:0.85rem">
+                            Contributions are locked: Escrow must be funded by the sponsor before work can be submitted.
+                        </div>
+                    {% else %}
+                        <details style="margin-top:1rem">
+                            <summary class="btn btn-secondary" style="font-size:0.82rem;cursor:pointer">+ Submit Contribution</summary>
+                            <div class="card" style="margin-top:0.5rem;background:#12161B">
+                                <h4 style="font-size:0.95rem;margin-bottom:0.75rem">Submit Work to Milestone #{{ ms.id }}</h4>
+                                <form method="POST" action="/milestones/{{ ms.id }}/contributions" style="display:flex;flex-direction:column;gap:0.75rem">
+                                    <div>
+                                        <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.25rem">Artefact Title</label>
+                                        <input type="text" name="title" required placeholder="e.g. Quantized Retinopathy Inference Model" style="width:100%">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.25rem">Work Text / Code / Specifications</label>
+                                        <textarea name="text" required rows="4" placeholder="Paste contribution content..." style="width:100%"></textarea>
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:0.25rem">AI-Use Declaration (Required)</label>
+                                        <select name="ai_declaration" required style="width:100%">
+                                            <option value="">-- Select AI-Use Declaration --</option>
+                                            <option value="human">Human: 100% human-created, no AI generation</option>
+                                            <option value="ai_assisted">AI-assisted: Human-authored with AI tools for drafting or debugging</option>
+                                            <option value="agent_generated">Agent-generated: Output generated by an AI agent under human direction</option>
+                                        </select>
+                                        <span class="muted-text" style="font-size:0.75rem;margin-top:0.2rem;display:block">
+                                            AI-generated work is always credited to the directing human author; AI systems never receive payouts or credentials.
+                                        </span>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="align-self:flex-start">Submit Artefact</button>
+                                </form>
+                            </div>
+                        </details>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="card" style="text-align:center;padding:3rem 1.5rem">
+        <p class="muted-text">No milestones defined yet for this project.</p>
+        {% if is_sponsor %}
+            <p style="margin-top:0.5rem;font-size:0.9rem">Use the "+ Add Milestone" button above to create the first milestone.</p>
+        {% endif %}
+    </div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

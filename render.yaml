@@ -1,0 +1,15 @@
+# Render deployment configuration
+# https://render.com — connect your GitHub repo, click "New Web Service"
+services:
+  - type: web
+    name: provenance
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python demo_reset.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    envVars:
+      - key: PROVENANCE_LLM
+        value: canned
+      - key: PYTHON_VERSION
+        value: "3.11"
+    healthCheckPath: /

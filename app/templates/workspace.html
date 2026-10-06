@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Workspace Agent — {{ project.title }} — Provenance{% endblock %}
+{% block content %}
+
+<div class="breadcrumb">
+    <a href="/projects">Projects</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="/projects/{{ project.id }}">{{ project.title }}</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Workspace Agent</span>
+</div>
+
+{% if error %}
+<div class="alert alert-red" style="margin-bottom:1.25rem">
+    <strong>Error ({{ error_code }}):</strong> {{ error }}
+</div>
+{% endif %}
+
+{% if not can_access %}
+<div class="card locked-card" style="margin-top:1.5rem">
+    <div class="locked-card-inner">
+        <span class="lock-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+        </span>
+        <div class="locked-card-text">
+            <strong>Access restricted</strong>
+            The Workspace Agent is available to project members, the sponsor, and admin.
+            {% if user and user.role in ('student', 'expert') %}
+                <br><a href="/projects/{{ project.id }}/join" style="color:var(--info)">Join the project →</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% else %}
+
+{# ── Draft form (members only) ── #}
+{% if is_member %}
+<div class="card" style="margin-bottom:1.5rem">
+    <div class="card-header"><span class="eyebrow">Ask the Workspace Agent</span></div>
+    <form method="POST" action="/projects/{{ project.id }}/workspace" style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.85rem">
+        <div>
+            <label class="meta-label" for="ms-select">Milestone</label>
+            <select id="ms-select" name="milestone_id" class="form-control" required style="margin-top:0.3rem">
+                <option value="">— select an open milestone —</option>
+                {% for ms in open_milestones %}
+                <option value="{{ ms.id }}">{{ ms.title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="meta-label" for="instruction-ta">Instruction <span class="muted-text">(max 500 chars)</span></label>
+            <textarea id="instruction-ta" name="instruction" class="form-control" rows="3"
+                      maxlength="500" placeholder="Describe what you want the agent to draft…"
+                      required style="margin-top:0.3rem;resize:vertical"></textarea>
+        </div>
+        <div>
+            <label class="meta-label" for="source-text-area">
+                Source Document <span class="muted-text">(optional, max 8000 chars)</span>
+            </label>
+            <textarea id="source-text-area" name="source_text" class="form-control" rows="4"
+                      maxlength="8000" placeholder="Paste reference text or research notes here…"
+                      style="margin-top:0.3rem;resize:vertical"></textarea>
+            <button id="load-sample-btn" type="button" class="btn btn-secondary"
+                    style="margin-top:0.4rem;font-size:0.8rem">
+                ⚠ Load sample suspicious document
+            </button>
+            <span class="muted-text" style="font-size:0.76rem;display:block;margin-top:0.25rem">
+                SIMULATED compromised model output (MOCKED) — demonstrates the injection defence.
+            </span>
+        </div>
+        <div>
+            <button type="submit" class="btn btn-primary">✦ Ask the agent</button>
+        </div>
+    </form>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:1.25rem;padding:0.85rem 1rem;border-color:rgba(138,151,166,0.25)">
+    <p class="muted-text" style="font-size:0.87rem">
+        {% if user and user.id == project.sponsor_id %}
+            You are viewing as the sponsor. Only project members can submit drafts.
+        {% elif user and user.role == 'admin' %}
+            Admin view. Only project members can submit drafts.
+        {% else %}
+            Join the project as a member to use the workspace agent.
+        {% endif %}
+    </p>
+</div>
+{% endif %}
+
+{# ── Action cards ── #}
+<h2 style="font-size:1.1rem;margin-bottom:0.85rem">Agent Actions
+    {% if actions %}<span class="chip" style="background:rgba(138,151,166,0.1);color:var(--muted);border:1px solid rgba(138,151,166,0.25);font-size:0.75rem;vertical-align:middle">{{ actions | length }}</span>{% endif %}
+</h2>
+
+{% if actions %}
+{% for action in actions %}
+<div class="action-card">
+    {# Header: agent / owner / status #}
+    <div class="action-card-header">
+        <span style="color:var(--muted)">Workspace Agent</span>
+        <span style="color:var(--line)">·</span>
+        <span>Owner: <strong>{{ action.owner_name }}</strong></span>
+        <span style="color:var(--line)">·</span>
+        {% if action.status == 'pending' %}
+            <span class="status-pending">AWAITING APPROVAL</span>
+        {% elif action.status == 'approved' %}
+            <span class="status-approved">APPROVED</span>
+        {% elif action.status == 'rejected' %}
+            <span class="status-rejected">REJECTED</span>
+        {% else %}
+            <span class="status-pending">{{ action.status | upper }}</span>
+        {% endif %}
+        <span class="muted-text" style="font-size:0.76rem;margin-left:auto">{{ action.created_at[:16] | replace('T',' ') }}</span>
+    </div>
+
+    {# Injection / blocked tools notice (always shown if any) #}
+    {% if action.blocked_tools %}
+    <div class="injection-banner">
+        <span style="font-size:1.1rem">⚠</span>
+        <div>
+            <strong>Suspicious instructions were detected and blocked.</strong>
+            Blocked tool requests:
+            {% for t in action.blocked_tools %}
+            <span class="chip" style="background:rgba(255,77,79,0.15);color:var(--broken);border:1px solid rgba(255,77,79,0.35);font-size:0.72rem">{{ t }}</span>
+            {% endfor %}
+            <br><span style="font-size:0.78rem;opacity:0.75">SIMULATED compromised model output (MOCKED) — these tool calls were stripped by the AI Firewall.</span>
+        </div>
+    </div>
+    {% endif %}
+
+    {# Injection flags (without blocked tools = flags only) #}
+    {% if action.flags and not action.blocked_tools %}
+    <div style="margin-bottom:0.5rem">
+        {% for f in action.flags %}
+        <span class="chip" style="background:rgba(255,176,32,0.13);color:var(--pending);border:1px solid rgba(255,176,32,0.28);font-size:0.72rem">⚠ {{ f }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Draft text — only if the action dict includes it (owner only) #}
+    {% if action.draft is defined and action.draft %}
+    <div class="action-draft">{{ action.draft }}</div>
+    {% endif %}
+
+    {# Pending action controls — owner only (action.draft is present iff viewer is owner) #}
+    {% if action.status == 'pending' and action.draft is defined and action.draft is not none %}
+        <div style="margin-top:0.75rem">
+        {% if action.blocked_tools %}
+            {# Flagged: require confirm checkbox #}
+            <form method="POST" action="/workspace-actions/{{ action.id }}/approve-ui"
+                  style="display:flex;flex-direction:column;gap:0.5rem">
+                <input type="hidden" name="project_id" value="{{ project.id }}">
+                <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;font-size:0.84rem">
+                    <input type="checkbox" name="confirm_flagged" value="true" required
+                           style="margin-top:0.15rem;flex-shrink:0">
+                    <span>I reviewed the draft and the flagged document and confirm the content is safe to submit.</span>
+                </label>
+                <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
+                    <button type="submit" class="btn btn-primary" style="font-size:0.84rem">✓ Approve &amp; Submit contribution</button>
+                </div>
+            </form>
+        {% else %}
+            <form method="POST" action="/workspace-actions/{{ action.id }}/approve-ui"
+                  style="display:inline">
+                <input type="hidden" name="project_id" value="{{ project.id }}">
+                <button type="submit" class="btn btn-primary" style="font-size:0.84rem">✓ Approve &amp; Submit</button>
+            </form>
+        {% endif %}
+        <form method="POST" action="/workspace-actions/{{ action.id }}/reject-ui"
+              style="display:inline;margin-left:0.5rem">
+            <input type="hidden" name="project_id" value="{{ project.id }}">
+            <button type="submit" class="btn btn-secondary" style="font-size:0.84rem;color:var(--broken)">✕ Reject</button>
+        </form>
+        </div>
+    {% elif action.status == 'approved' and action.linked_contribution_id %}
+        <div style="margin-top:0.5rem">
+            <a href="/projects/{{ project.id }}/milestones" class="btn btn-secondary" style="font-size:0.8rem">
+                View contribution on Milestones page →
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="card" style="text-align:center;padding:2rem">
+    <p class="muted-text">No agent actions yet for this project.</p>
+</div>
+{% endif %}
+
+{% endif %}{# can_access #}
+{% endblock %}
+{% block scripts %}
+<script src="/static/workspace.js"></script>
+{% endblock %}

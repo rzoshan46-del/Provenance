@@ -51,7 +51,7 @@ SYNTHETIC_USERS = [
         "is_minor": 0,
         "guardian_consent": 1,
         "conflict_orgs": json.dumps(["MedVision Labs"]),
-        "skills": json.dumps(["medical imaging", "deep learning", "edge deployment"]),
+        "skills": json.dumps(["medical imaging", "deep learning", "edge deployment", "model quantization"]),
         "bio": "Edge AI specialist with prior advisory affiliation at MedVision Labs.",
     },
     {
@@ -64,7 +64,7 @@ SYNTHETIC_USERS = [
         "is_minor": 0,
         "guardian_consent": 1,
         "conflict_orgs": json.dumps([]),
-        "skills": json.dumps(["python", "pytorch", "medical imaging", "data analysis"]),
+        "skills": json.dumps(["python", "deep learning", "data labelling"]),
         "bio": "Computer science graduate researcher working on CNN image classification.",
     },
     {
@@ -77,7 +77,7 @@ SYNTHETIC_USERS = [
         "is_minor": 0,
         "guardian_consent": 1,
         "conflict_orgs": json.dumps([]),
-        "skills": json.dumps(["edge deployment", "tensorrt", "embedded systems", "c++"]),
+        "skills": json.dumps(["python", "edge deployment", "model quantization"]),
         "bio": "Undergraduate developer specializing in embedded systems and model quantization.",
     },
     {
@@ -85,12 +85,12 @@ SYNTHETIC_USERS = [
         "name": "Sneha",
         "email": "sneha@example.com",
         "role": "student",
-        "verification_level": 2,
+        "verification_level": 1,
         "institution": "National Tech Institute",
         "is_minor": 0,
         "guardian_consent": 1,
         "conflict_orgs": json.dumps([]),
-        "skills": json.dumps(["data curation", "evaluation metrics", "fairness", "python"]),
+        "skills": json.dumps(["python", "medical imaging", "data labelling"]),
         "bio": "Data science researcher focused on clinical benchmark curation and algorithmic fairness.",
     },
     {
@@ -103,7 +103,7 @@ SYNTHETIC_USERS = [
         "is_minor": 0,
         "guardian_consent": 1,
         "conflict_orgs": json.dumps([]),
-        "skills": json.dumps(["fastapi", "fullstack", "ui design", "sqlite"]),
+        "skills": json.dumps(["web development", "python", "data analytics"]),
         "bio": "Software engineering student passionate about research workspace tooling and APIs.",
     },
     {
@@ -116,7 +116,7 @@ SYNTHETIC_USERS = [
         "is_minor": 1,
         "guardian_consent": 0,
         "conflict_orgs": json.dumps([]),
-        "skills": json.dumps(["python", "machine learning", "dataset labeling"]),
+        "skills": json.dumps(["python", "deep learning", "medical imaging"]),
         "bio": "High school talent researcher in AI fundamentals; minor status awaiting guardian consent.",
     },
 ]

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Credit Statement — {{ milestone.title }} — Provenance{% endblock %}
+{% block content %}
+
+<div class="breadcrumb">
+    <a href="/projects">Projects</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="/projects/{{ project.id }}">{{ project.title }}</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="/projects/{{ project.id }}/milestones">Milestones</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Credit Statement</span>
+</div>
+
+{% if not can_see %}
+<div class="card locked-card" style="margin-top:1.5rem">
+    <div class="locked-card-inner">
+        <span class="lock-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+        </span>
+        <div class="locked-card-text">
+            <h3 style="margin-bottom:0.3rem">Credit Statement Locked</h3>
+            <p>Hidden until you accept the charter. Credit statements are visible to active members, sponsors, and audit admins.</p>
+        </div>
+    </div>
+</div>
+{% else %}
+
+{# ── UNPAID Banner ── #}
+<div class="engagement-banner unpaid-banner" style="margin-bottom:1.5rem">
+    <strong>UNPAID: Recognition Only</strong>
+    This project operates under an open knowledge sharing engagement model with no payment. Contributors receive permanent verifiable academic recognition, digital badges, certificates, and co-authorship credentials.
+</div>
+
+<div style="margin-bottom:1.5rem">
+    <div class="project-card-chips" style="margin-bottom:0.5rem">
+        <span class="chip chip-cyan">UNPAID: recognition only</span>
+        <span class="chip chip-lime">ACCEPTED &amp; CREDENTIALED</span>
+        <span class="chip chip-cyan">Charter v{{ project.current_charter_version }}</span>
+    </div>
+    <h1 style="font-size:1.6rem;line-height:1.3">Non-Monetary Credit Statement</h1>
+    <p class="muted-text" style="margin-top:0.3rem">
+        Milestone: <strong style="color:var(--text)">{{ milestone.title }}</strong> · Project: <strong style="color:var(--text)">{{ project.title }}</strong>
+    </p>
+</div>
+
+{# ── Contributor Percentage Shares ── #}
+<div class="card" style="margin-bottom:1.75rem">
+    <h2 style="font-size:1.15rem;margin-bottom:1rem">Contribution Distribution (100% Total Attribution)</h2>
+
+    <div style="display:flex;flex-direction:column;gap:1.25rem">
+        {% for c in statement.contributors %}
+        <div style="background:#12161B;border:1px solid var(--line);border-radius:6px;padding:1rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                <div style="display:flex;align-items:center;gap:0.5rem">
+                    <strong style="font-size:1.05rem;color:var(--text)">{{ c.name }}</strong>
+                    <span class="role-chip role-{{ c.role }}">{{ c.role | upper }}</span>
+                </div>
+                <div style="font-size:1.15rem;font-weight:700;color:#3DD6FF;font-family:var(--font-mono)">
+                    {{ c.percentage_share }}%
+                </div>
+            </div>
+
+            <div style="height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;margin-bottom:0.75rem">
+                <div style="height:100%;background:#3DD6FF;width:{{ c.percentage_share }}%;border-radius:4px"></div>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.82rem;color:var(--muted)">
+                <span>Evaluated Impact Score: {{ c.impact_score }}</span>
+                {% if c.credentials %}
+                    <div>
+                        {% for cr in c.credentials %}
+                            <a href="/credentials" class="chip chip-lime" style="text-decoration:none;font-size:0.75rem">
+                                Certificate Issued ({{ cr.credential_hash[:8] }}…)
+                            </a>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card" style="border-color:var(--line)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;font-size:0.85rem">
+        <a href="/ledger?project_id={{ project.id }}" class="chip chip-lime" style="text-decoration:none">View Acceptance in Project Ledger →</a>
+        <span class="muted-text">Verified academic attribution anchored into the immutable ledger hash chain.</span>
+    </div>
+</div>
+
+{% endif %}
+
+{% endblock %}

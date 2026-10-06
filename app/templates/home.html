@@ -1,141 +1,188 @@
 {% extends "base.html" %}
-
-{% block title %}Provenance - Home{% endblock %}
-
+{% block title %}Provenance — Research Built on Evidence{% endblock %}
 {% block content %}
-<div class="page-grid">
-    <!-- Active Persona Section -->
-    <section class="persona-section">
-        {% if user %}
-            <div class="card persona-card">
-                <div class="card-header">
-                    <div>
-                        <span class="eyebrow">Active Persona</span>
-                        <h2 class="persona-name">{{ user.name }}</h2>
-                    </div>
-                    <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
-                </div>
 
-                <div class="card-body">
-                    <div class="profile-meta-grid">
-                        <div class="meta-item">
-                            <span class="meta-label">Email</span>
-                            <span class="meta-value">{{ user.email }}</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Institution</span>
-                            <span class="meta-value">{{ user.institution or "Independent" }}</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Verification</span>
-                            <span class="meta-value status-verified">Level {{ user.verification_level }} Verified</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Legal / Consent</span>
-                            <span class="meta-value">
-                                {% if user.is_minor %}
-                                    <span class="chip chip-amber">Minor {% if not user.guardian_consent %}(No Guardian Consent){% else %}(Consent On File){% endif %}</span>
-                                {% else %}
-                                    <span class="chip chip-lime">Adult Contributor</span>
-                                {% endif %}
-                            </span>
-                        </div>
-                    </div>
-
-                    {% if user.bio %}
-                        <div class="profile-bio">
-                            <span class="meta-label">Biography</span>
-                            <p>{{ user.bio }}</p>
-                        </div>
-                    {% endif %}
-
-                    <div class="profile-skills">
-                        <span class="meta-label">Verified Skill Matrix</span>
-                        <div class="chip-group">
-                            {% for skill in skills %}
-                                <span class="skill-chip">{{ skill }}</span>
-                            {% else %}
-                                <span class="muted-text">No skills listed</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card-footer">
-                    <span class="mock-notice">MOCKED: In production, identity is verified via decentralized KYC &amp; cryptographic keypair.</span>
-                </div>
+{# ── If signed in: compact dashboard header ── #}
+{% if user %}
+<div style="padding:2rem 0 0;margin-bottom:2.5rem;border-bottom:1px solid var(--line)">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem">
+        <div>
+            <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.3rem">Signed in as</div>
+            <h1 style="font-size:1.5rem;font-weight:900;letter-spacing:-.04em;margin:0">
+                {{ user.name }}
+                <span class="role-chip role-{{ user.role }}" style="vertical-align:middle;font-size:.72rem">{{ user.role }}</span>
+            </h1>
+            <div style="font-size:.83rem;color:var(--muted);margin-top:.2rem">{{ user.institution or "Independent" }}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+            <div style="text-align:center">
+                <div style="font-size:2rem;font-weight:900;font-family:var(--font-mono);color:var(--verified);line-height:1">{{ user_credits(user.id) }}</div>
+                <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">credits</div>
             </div>
-        {% else %}
-            <div class="card empty-card">
-                <div class="empty-state">
-                    <div class="empty-icon">👤</div>
-                    <h2>Choose a persona to begin</h2>
-                    <p class="muted-text">
-                        Provenance uses simulated personas for access-controlled research workspaces.
-                        Select a persona from the top bar dropdown or choose one below to explore the ecosystem.
-                    </p>
-                    <div class="persona-quick-grid">
-                        {% for u in all_users %}
-                            <a href="/switch/{{ u.id }}" class="persona-quick-btn">
-                                <span class="quick-name">{{ u.name }}</span>
-                                <span class="role-chip role-{{ u.role }}">{{ u.role }}</span>
-                            </a>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-        {% endif %}
-    </section>
-
-    <!-- System Status Panel -->
-    <aside class="status-section">
-        <div class="panel status-panel">
-            <div class="panel-header">
-                <h3>System Status</h3>
-                <span class="badge-dot pulse-green"></span>
-            </div>
-
-            <div class="status-chips-list">
-                <div class="status-chip-row">
-                    <span class="status-label">Database</span>
-                    <span class="chip chip-lime">Database OK</span>
-                </div>
-                <div class="status-chip-row">
-                    <span class="status-label">Seeded Users</span>
-                    <span class="chip chip-cyan">Users: {{ user_count }}</span>
-                </div>
-                <div class="status-chip-row">
-                    <span class="status-label">Ledger Engine</span>
-                    {% if ledger_info and ledger_info.ok %}
-                        <a href="/ledger" class="chip chip-lime" style="text-decoration:none">
-                            Ledger: {{ ledger_info.checked }} entries (VERIFIED)
-                        </a>
-                    {% elif ledger_info %}
-                        <a href="/ledger" class="chip chip-red" style="text-decoration:none">
-                            Ledger: {{ ledger_info.checked }} entries (BROKEN)
-                        </a>
-                    {% else %}
-                        <a href="/ledger" class="chip chip-amber" style="text-decoration:none">
-                            Ledger: 0 entries
-                        </a>
-                    {% endif %}
-                </div>
-                <div class="status-chip-row">
-                    <span class="status-label">AI Gateway</span>
-                    <span class="chip chip-amber">offline (S4)</span>
-                </div>
-            </div>
-
-            <div class="panel-actions">
-                <button disabled class="btn btn-secondary btn-block btn-disabled" title="Available in Module S6">
-                    Story Mode (coming in S6)
-                </button>
-            </div>
-
-            <div class="panel-footer-note">
-                <span class="muted-text">Module S0: Core architecture skeleton initialized.</span>
+            <div style="display:flex;flex-direction:column;gap:.4rem">
+                <a href="/projects" class="btn btn-primary" style="font-size:.83rem">Open Projects</a>
+                <a href="/me" class="btn btn-secondary" style="font-size:.83rem">My Profile & Credits</a>
             </div>
         </div>
-    </aside>
+    </div>
+
+    {# Ledger status inline #}
+    {% if ledger_info %}
+    <div style="display:flex;align-items:center;gap:.6rem;padding-bottom:1.25rem;font-size:.8rem;color:var(--muted)">
+        <span style="width:.45rem;height:.45rem;border-radius:50%;flex-shrink:0;
+            {% if ledger_info.ok %}background:var(--verified){% else %}background:var(--broken){% endif %}"></span>
+        Ledger
+        {% if ledger_info.ok %}
+            <span style="color:var(--verified);font-weight:700">CHAIN VERIFIED</span>
+        {% else %}
+            <span style="color:var(--broken);font-weight:700">CHAIN BROKEN</span>
+        {% endif %}
+        &nbsp;·&nbsp; {{ ledger_entry_count }} entries
+        {% if ledger_info.head_hash %}
+        &nbsp;·&nbsp; <span style="font-family:var(--font-mono);font-size:.72rem">{{ ledger_info.head_hash[:20] }}…</span>
+        {% endif %}
+        <a href="/ledger" style="color:var(--verified);margin-left:.25rem">inspect →</a>
+    </div>
+    {% endif %}
 </div>
+
+{# Dashboard: quick stats row #}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.75rem;margin-bottom:2.5rem">
+    <a href="/projects" style="display:block;padding:.9rem 1rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);text-decoration:none;color:var(--text);transition:border-color .15s" onmouseover="this.style.borderColor='rgba(255,255,255,.15)'" onmouseout="this.style.borderColor='var(--line)'">
+        <div style="font-size:1.6rem;font-weight:900;font-family:var(--font-mono);color:var(--text)">{{ project_count }}</div>
+        <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:.15rem">Projects</div>
+    </a>
+    <a href="/ledger" style="display:block;padding:.9rem 1rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);text-decoration:none;color:var(--text);transition:border-color .15s" onmouseover="this.style.borderColor='rgba(255,255,255,.15)'" onmouseout="this.style.borderColor='var(--line)'">
+        <div style="font-size:1.6rem;font-weight:900;font-family:var(--font-mono);color:var(--verified)">{{ ledger_entry_count }}</div>
+        <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:.15rem">Ledger Entries</div>
+    </a>
+    <div style="padding:.9rem 1rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md)">
+        <div style="font-size:1.6rem;font-weight:900;font-family:var(--font-mono);color:var(--info)">{{ user_count }}</div>
+        <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:.15rem">Researchers</div>
+    </div>
+    <div style="padding:.9rem 1rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md)">
+        <div style="font-size:1.6rem;font-weight:900;font-family:var(--font-mono);color:var(--pending)">{{ ai_calls_count }}</div>
+        <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:.15rem">AI Calls</div>
+    </div>
+</div>
+
+{# Skills strip #}
+{% set ucr = user_credits(user.id) %}
+{% if ucr == 0 %}
+<div style="padding:1.25rem;background:rgba(198,255,61,.05);border:1px solid rgba(198,255,61,.15);border-radius:var(--radius-md);margin-bottom:2.5rem;font-size:.88rem">
+    <strong>Get started:</strong> Join a project, submit a contribution, or sign the project charter to earn your first credits.
+    <a href="/projects" style="color:var(--verified);margin-left:.35rem">Browse projects →</a>
+</div>
+{% endif %}
+
+{% else %}
+{# ── Anonymous: editorial hero ── #}
+
+<div style="padding:4rem 0 3rem;border-bottom:1px solid var(--line);margin-bottom:3rem">
+    <div style="max-width:640px">
+        <div style="font-size:.72rem;font-weight:700;color:var(--verified);text-transform:uppercase;letter-spacing:.1em;margin-bottom:1rem">Open Research Platform</div>
+        <h1 style="font-size:clamp(2.2rem,5vw,3.8rem);font-weight:900;line-height:1.05;letter-spacing:-.05em;margin-bottom:1.2rem">
+            Every contribution.<br>
+            On the record.<br>
+            <span class="gradient-text">Forever.</span>
+        </h1>
+        <p style="font-size:1.05rem;color:var(--muted);line-height:1.7;max-width:500px;margin-bottom:2rem">
+            Provenance is the research platform where every action is hashed onto a tamper-proof chain,
+            AI agents require human approval, and contributors earn verifiable credits — not promises.
+        </p>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+            <a href="/login" class="btn-signin" style="font-size:1rem;padding:.7rem 1.5rem">Get started →</a>
+            <a href="/projects" class="btn btn-secondary" style="font-size:1rem;padding:.7rem 1.4rem">Browse projects</a>
+        </div>
+    </div>
+</div>
+
+{# ── Live numbers ── #}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:3.5rem">
+    {% for label, val, color in [
+        ('Projects', project_count, 'var(--text)'),
+        ('Researchers', user_count, 'var(--info)'),
+        ('Ledger entries', ledger_entry_count, 'var(--verified)'),
+        ('AI calls', ai_calls_count, 'var(--pending)')
+    ] %}
+    <div style="padding:1.25rem 1.5rem;{% if not loop.last %}border-right:1px solid var(--line){% endif %}">
+        <div style="font-size:2rem;font-weight:900;font-family:var(--font-mono);color:{{ color }};line-height:1">{{ val }}</div>
+        <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:.2rem">{{ label }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+{# ── 3 core principles ── #}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.5rem;margin-bottom:3.5rem">
+    <div>
+        <div style="font-size:.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">01 — Chain of custody</div>
+        <h3 style="font-size:1.1rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.5rem">Tamper-evident by design</h3>
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.65;margin:0">Every event — submission, review, payment, AI call — is SHA-256 hashed into an append-only chain. Modify one record and the chain breaks. No exceptions, no overrides.</p>
+    </div>
+    <div>
+        <div style="font-size:.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">02 — AI with brakes</div>
+        <h3 style="font-size:1.1rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.5rem">Every AI output waits for a human</h3>
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.65;margin:0">The scoping agent, matching engine, and workspace agent all produce <em>pending</em> results. A human must approve before anything changes. The firewall strips hostile instructions from source documents.</p>
+    </div>
+    <div>
+        <div style="font-size:.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">03 — Fair attribution</div>
+        <h3 style="font-size:1.1rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.5rem">Credits you can verify</h3>
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.65;margin:0">Contribution credits are computed directly from the on-chain ledger. They can't be self-assigned. Credentials are 64-hex hashes tied to your contribution hash — no institution can revoke them.</p>
+    </div>
+</div>
+
+{# ── Feature table ── #}
+<div style="margin-bottom:3.5rem">
+    <h2 style="font-size:1.15rem;font-weight:800;letter-spacing:-.03em;margin-bottom:1rem;color:var(--muted)">What's included</h2>
+    <div style="border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden">
+        {% for icon, name, desc, tag, tagcls in [
+            ('⛓','Tamper-evident ledger','SHA-256 hash chain. Every governance, work, and payment event recorded and independently verifiable.','Core infra','chip-lime'),
+            ('🤖','AI Scoping Agent','Proposes milestones from the confidential brief. Sponsor must approve each one — no auto-execution.','Human-in-loop','chip-cyan'),
+            ('⚡','Team Matching','Scores candidates on skills, conflict-of-interest, verification level, and newcomer boost. Auto-excludes conflicts.','Fairness-aware','chip-cyan'),
+            ('🛡','AI Firewall','Scans source documents for prompt injection. Strips hostile tool calls. Flags suspicious content for human review.','Security','chip-red'),
+            ('💰','Smart Escrow','Funds locked at milestone creation. Released only after expert review and sponsor acceptance. Split conserved to ₹1.','Finance','chip-amber'),
+            ('🏅','Credential System','Verifiable 64-hex badges tied to contribution hashes. Self-sovereign — no institution can revoke them.','Attribution','chip-lime')
+        ] %}
+        <div style="display:flex;align-items:center;gap:1rem;padding:.85rem 1.15rem;{% if not loop.last %}border-bottom:1px solid var(--line){% endif %};transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.025)'" onmouseout="this.style.background=''">
+            <span style="font-size:1.2rem;width:2rem;text-align:center;flex-shrink:0">{{ icon }}</span>
+            <div style="flex:1;min-width:0">
+                <span style="font-size:.9rem;font-weight:700">{{ name }}</span>
+                <span style="font-size:.82rem;color:var(--muted);margin-left:.6rem">{{ desc }}</span>
+            </div>
+            <span class="chip {{ tagcls }}" style="font-size:.67rem;flex-shrink:0">{{ tag }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{# ── Persona picker ── #}
+<div style="margin-bottom:3rem">
+    <h2 style="font-size:1.15rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.35rem">Try the live demo</h2>
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:1rem">Pick a persona to explore the platform as that role. No sign-up needed.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:.75rem">
+        {% for u in all_users %}
+        <a href="/switch/{{ u.id }}" style="display:flex;align-items:center;gap:.75rem;padding:.8rem .9rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);text-decoration:none;color:var(--text);transition:all .15s" onmouseover="this.style.borderColor='rgba(255,255,255,.2)';this.style.background='rgba(255,255,255,.03)'" onmouseout="this.style.borderColor='var(--line)';this.style.background='var(--panel)'">
+            <span style="font-size:1.2rem">{% if u.role=='sponsor' %}🏛{% elif u.role=='expert' %}🔬{% elif u.role=='admin' %}🛡{% else %}🎓{% endif %}</span>
+            <div style="min-width:0">
+                <div style="font-size:.85rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.name }}</div>
+                <div style="font-size:.7rem;color:var(--muted)">{{ u.role }}{% if u.is_minor %} · minor{% endif %}</div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+
+{# Ledger live status strip #}
+{% if ledger_info %}
+<div style="display:flex;align-items:center;gap:.75rem;padding:.9rem 1.1rem;border:1px solid var(--line);border-radius:var(--radius-md);font-size:.82rem;color:var(--muted)">
+    <span style="width:.45rem;height:.45rem;border-radius:50%;flex-shrink:0;background:{% if ledger_info.ok %}var(--verified){% else %}var(--broken){% endif %}"></span>
+    Ledger &nbsp;
+    {% if ledger_info.ok %}<strong style="color:var(--verified)">CHAIN VERIFIED</strong>{% else %}<strong style="color:var(--broken)">CHAIN BROKEN</strong>{% endif %}
+    &nbsp;·&nbsp; {{ ledger_entry_count }} entries
+    {% if ledger_info.head_hash %}&nbsp;·&nbsp; <span style="font-family:var(--font-mono);font-size:.72rem">HEAD {{ ledger_info.head_hash[:20] }}…</span>{% endif %}
+    <a href="/ledger" style="margin-left:auto;color:var(--verified);font-weight:600">Inspect →</a>
+</div>
+{% endif %}
+
+{% endif %}
 {% endblock %}

@@ -1,0 +1,15 @@
+# Railway deployment configuration
+# https://railway.app — deploy directly from GitHub in ~2 minutes
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python demo_reset.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1"
+healthcheckPath = "/"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[environments.production.variables]
+PROVENANCE_LLM = "canned"

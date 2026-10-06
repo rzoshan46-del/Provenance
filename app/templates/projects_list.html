@@ -1,63 +1,114 @@
 {% extends "base.html" %}
 {% block title %}Projects — Provenance{% endblock %}
 {% block content %}
-<div class="page-header">
-    <h1>Research Projects</h1>
-    {% if user and user.role == 'sponsor' %}
-        <a href="/projects/new" class="btn btn-primary">＋ Post a Problem</a>
-    {% endif %}
+
+<div style="padding:2rem 0 1.5rem;border-bottom:1px solid var(--line);margin-bottom:1.75rem">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1.1rem">
+        <div>
+            <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.3rem">Ecosystem</div>
+            <h1 style="font-size:1.8rem;font-weight:900;letter-spacing:-.045em;margin:0">Research Projects</h1>
+        </div>
+        {% if user and user.role == 'sponsor' %}
+            <a href="/projects/new" class="btn btn-primary">＋ Post a Problem</a>
+        {% endif %}
+    </div>
+
+    {# Search + filters #}
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+        <input type="text" id="proj-search" placeholder="Search projects…"
+               oninput="filterProjects()"
+               style="flex:1;min-width:220px;max-width:340px;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:var(--radius-md);padding:.42rem .75rem;color:var(--text);font-size:.85rem;outline:none"
+               onfocus="this.style.borderColor='rgba(198,255,61,.35)'" onblur="this.style.borderColor='var(--line)'">
+        <select id="proj-filter-eng" onchange="filterProjects()" class="persona-select" style="font-size:.82rem;padding:.38rem .6rem">
+            <option value="">All types</option>
+            <option value="funded">Funded</option>
+            <option value="unpaid">Unpaid</option>
+        </select>
+        <select id="proj-filter-sens" onchange="filterProjects()" class="persona-select" style="font-size:.82rem;padding:.38rem .6rem">
+            <option value="">All visibility</option>
+            <option value="public">Public</option>
+            <option value="internal">Internal</option>
+            <option value="confidential">Confidential</option>
+        </select>
+        <span id="proj-count" style="font-size:.78rem;color:var(--muted)">{{ projects | length }} projects</span>
+    </div>
 </div>
 
 {% if not projects %}
-    <div class="card empty-card">
-        <div class="empty-state">
-            <div class="empty-icon">🔬</div>
-            <h2>No projects yet</h2>
-            <p class="muted-text">Sponsors can post research problems for experts and students to join.</p>
-        </div>
+    <div style="text-align:center;padding:4rem 1rem;color:var(--muted)">
+        <div style="font-size:2.5rem;margin-bottom:.75rem">🔬</div>
+        <h2 style="font-weight:800;margin-bottom:.5rem">No projects yet</h2>
+        <p style="font-size:.9rem">Sponsors can post research problems for experts and students to join.</p>
     </div>
 {% else %}
-    <div class="projects-grid">
-        {% for p in projects %}
-        {% set state = membership_states[p.id] %}
-        <div class="project-card">
-            <a href="/projects/{{ p.id }}" class="project-card-title">{{ p.title }}</a>
+<div id="projects-list" style="display:flex;flex-direction:column;gap:.65rem">
+    {% for p in projects %}
+    {% set state = membership_states[p.id] %}
+    {% set is_funded = p.engagement_model in ('funded', 'stipend') %}
+    <div class="proj-row" data-title="{{ p.title | lower }}" data-summary="{{ (p.public_summary or '') | lower }}"
+         data-eng="{% if is_funded %}funded{% else %}unpaid{% endif %}"
+         data-sens="{{ p.sensitivity_label }}"
+         style="display:flex;align-items:flex-start;gap:1rem;padding:1rem 1.15rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);transition:all .15s"
+         onmouseover="this.style.borderColor='rgba(255,255,255,.12)';this.style.background='rgba(255,255,255,.02)'"
+         onmouseout="this.style.borderColor='var(--line)';this.style.background='var(--panel)'">
 
-            <div class="project-card-chips">
-                {# Engagement model chip #}
-                {% if p.engagement_model in ('knowledge_sharing', 'institutional_credit') %}
-                    <span class="chip chip-cyan">UNPAID</span>
+        {# Left: title + meta #}
+        <div style="flex:1;min-width:0">
+            <a href="/projects/{{ p.id }}" style="font-size:.97rem;font-weight:800;color:var(--text);text-decoration:none;letter-spacing:-.02em;display:block;margin-bottom:.3rem;line-height:1.3" onmouseover="this.style.color='var(--verified)'" onmouseout="this.style.color='var(--text)'">{{ p.title }}</a>
+            {% if p.public_summary %}
+            <div style="font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:.45rem">{{ p.public_summary[:100] }}{% if p.public_summary | length > 100 %}…{% endif %}</div>
+            {% endif %}
+            <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center">
+                {% if is_funded %}
+                    <span class="chip chip-amber" style="font-size:.68rem">FUNDED</span>
                 {% else %}
-                    <span class="chip chip-amber">FUNDED</span>
+                    <span class="chip chip-cyan" style="font-size:.68rem">UNPAID</span>
                 {% endif %}
-
-                {# Sensitivity chip #}
                 {% if p.sensitivity_label == 'confidential' %}
-                    <span class="chip chip-red">CONFIDENTIAL</span>
+                    <span class="chip chip-red" style="font-size:.68rem">🔒 CONFIDENTIAL</span>
                 {% elif p.sensitivity_label == 'internal' %}
-                    <span class="chip chip-amber">INTERNAL</span>
+                    <span class="chip chip-amber" style="font-size:.68rem">INTERNAL</span>
                 {% else %}
-                    <span class="chip chip-lime">PUBLIC</span>
+                    <span class="chip chip-lime" style="font-size:.68rem">PUBLIC</span>
                 {% endif %}
-
-                {# Charter version chip #}
-                <span class="chip chip-cyan">Charter v{{ p.current_charter_version }}</span>
-
-                {# Membership state chip #}
+                <span class="chip chip-cyan" style="font-size:.68rem">Charter v{{ p.current_charter_version }}</span>
                 {% if state == 'member' %}
-                    <span class="chip chip-lime">Member</span>
+                    <span style="font-size:.68rem;font-weight:700;color:var(--verified)">✓ Member</span>
                 {% elif state == 'reaccept_required' %}
-                    <span class="chip chip-amber">Re-accept Required</span>
-                {% elif user %}
-                    <span class="chip" style="background:rgba(138,151,166,0.1);color:var(--muted);border:1px solid rgba(138,151,166,0.3)">Not Joined</span>
+                    <span class="chip chip-amber" style="font-size:.68rem">Re-accept required</span>
                 {% endif %}
-            </div>
-
-            <div class="project-card-meta">
-                Sponsored by <strong>{{ p.sponsor_name }}</strong>
             </div>
         </div>
-        {% endfor %}
+
+        {# Right: sponsor + action #}
+        <div style="flex-shrink:0;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:.5rem">
+            <div style="font-size:.75rem;color:var(--muted)">{{ p.sponsor_name }}</div>
+            <a href="/projects/{{ p.id }}" class="btn btn-secondary" style="font-size:.78rem;padding:.28rem .7rem">Open →</a>
+        </div>
     </div>
+    {% endfor %}
+</div>
+<div id="no-results" style="display:none;text-align:center;padding:3rem;color:var(--muted);font-size:.9rem">No projects match your search.</div>
 {% endif %}
+
+<script>
+function filterProjects() {
+    var q = document.getElementById('proj-search').value.toLowerCase().trim();
+    var eng = document.getElementById('proj-filter-eng').value;
+    var sens = document.getElementById('proj-filter-sens').value;
+    var rows = document.querySelectorAll('.proj-row');
+    var visible = 0;
+    rows.forEach(function(r) {
+        var titleMatch = !q || r.dataset.title.indexOf(q) !== -1 || r.dataset.summary.indexOf(q) !== -1;
+        var engMatch = !eng || r.dataset.eng === eng;
+        var sensMatch = !sens || r.dataset.sens === sens;
+        var show = titleMatch && engMatch && sensMatch;
+        r.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    document.getElementById('proj-count').textContent = visible + ' project' + (visible !== 1 ? 's' : '');
+    document.getElementById('no-results').style.display = visible === 0 ? '' : 'none';
+}
+</script>
+
 {% endblock %}
