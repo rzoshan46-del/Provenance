@@ -4,12 +4,20 @@ services:
   - type: web
     name: provenance
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
-    startCommand: python demo_reset.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
+      - key: APP_ENV
+        value: production
+      - key: AUTH_MODE
+        value: google
+      - key: PROVENANCE_DEMO
+        value: "0"
       - key: PROVENANCE_LLM
-        value: canned
+        value: off
+      - key: PROVENANCE_DB
+        value: data/app.db
       - key: PYTHON_VERSION
         value: "3.11"
     healthCheckPath: /

@@ -16,4 +16,6 @@ All contributors and AI agents working on this codebase must strictly observe th
 - **(n)** Money is integer rupees; all splitting goes through app/splits.py; escrow state changes go through escrow_transition only; never use floats for money.
 - **(o)** Every model call goes through app/ai/gateway.py, and no other file imports httpx.
 - **(p)** API keys come only from environment variables and are never printed, logged or committed.
+- **(q)** All integrity logic lives in app/integrity; stored text is never modified; watermarks are applied only at output time.
+- **(r)** Integrity checks recommend, a human reviewer decides; flagged work can never be auto-approved.
 

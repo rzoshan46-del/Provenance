@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}Integrity Centre — Provenance{% endblock %}
+{% block content %}
+
+<div class="integrity-container">
+
+    <div class="breadcrumb">
+        <a href="/">Home</a>
+        <span class="breadcrumb-sep">/</span>
+        <span>Integrity Centre</span>
+    </div>
+
+    {% if not can_see %}
+    <div class="card locked-card" style="margin-top:1.5rem">
+        <div class="locked-card-inner">
+            <span class="lock-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </span>
+            <div class="locked-card-text">
+                <h3 style="margin-bottom:0.3rem">Integrity Centre Locked</h3>
+                <p>Sign in required to access the Integrity Centre and its forensic verification tools.</p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+
+    <div class="integrity-header">
+        <h1 style="font-size:1.75rem;margin-bottom:0.35rem">Integrity Centre</h1>
+        <p class="muted-text">
+            Forensic provenance tools: zero-width leak tracing, cryptographic authorship proof, and heuristic plagiarism screening.
+        </p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-red" style="margin-bottom:1.5rem;color:#FF4D4F;background:rgba(255,77,79,0.1);border:1px solid rgba(255,77,79,0.35);padding:0.75rem 1rem;border-radius:6px">
+        <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    {# ── Tab Navigation ── #}
+    <div class="integrity-tabs">
+        {% if user and user.role in ('sponsor', 'admin') %}
+        <button type="button" class="integrity-tab-btn {% if active_tab == 'trace' %}active{% endif %}" data-tab="trace" onclick="switchIntegrityTab('trace')">
+            🕵️ Leak Tracer
+        </button>
+        {% endif %}
+        <button type="button" class="integrity-tab-btn {% if active_tab == 'authorship' %}active{% endif %}" data-tab="authorship" onclick="switchIntegrityTab('authorship')">
+            📜 Authorship Proof
+        </button>
+        <button type="button" class="integrity-tab-btn {% if active_tab == 'preview' %}active{% endif %}" data-tab="preview" onclick="switchIntegrityTab('preview')">
+            🔍 Plagiarism &amp; AI Preview
+        </button>
+    </div>
+
+    {# ── Panel A: Leak Tracer (Sponsor & Admin Only) ── #}
+    {% if user and user.role in ('sponsor', 'admin') %}
+    <div class="integrity-panel {% if active_tab == 'trace' %}active{% endif %}" id="panel-trace">
+        <div class="card" style="margin-bottom:1.5rem">
+            <h2 style="font-size:1.15rem;margin-bottom:0.5rem">Zero-Width Watermark Leak Tracer</h2>
+            <p class="muted-text" style="font-size:0.85rem;margin-bottom:1rem">
+                Extract forensic viewer watermarks embedded into confidential briefs and artefacts.
+            </p>
+
+            <form method="POST" action="/integrity/trace" style="display:flex;flex-direction:column;gap:1rem">
+                <div>
+                    <label style="font-size:0.82rem;color:var(--muted);display:block;margin-bottom:0.35rem">Paste leaked text</label>
+                    <textarea name="text" rows="5" required placeholder="Paste suspected leaked content here..." style="width:100%;font-family:var(--font-mono);font-size:0.85rem">{{ pasted_trace_text }}</textarea>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+                    <button type="submit" class="btn btn-primary">Trace Leaked Content</button>
+                    <span class="muted-text" style="font-size:0.75rem;max-width:550px">
+                        Retyping or stripping invisible characters defeats this. MOCKED: production would use robust fingerprinting.
+                    </span>
+                </div>
+            </form>
+        </div>
+
+        {% if trace_result is not none %}
+        <div class="card" style="border-color:{% if trace_result.found %}var(--verified){% else %}var(--pending){% endif %};margin-bottom:1.5rem">
+            <h3 style="font-size:1.05rem;margin-bottom:0.75rem">Tracer Result</h3>
+            {% if trace_result.found %}
+                <div style="display:flex;flex-direction:column;gap:1rem">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+                        <div>
+                            <div style="font-size:0.8rem;color:var(--muted)">Identified Viewer</div>
+                            <div style="font-size:1.2rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:0.5rem;margin-top:0.2rem">
+                                {{ trace_result.name }}
+                                <span class="role-chip role-{{ trace_result.role }}">{{ trace_result.role | upper }}</span>
+                            </div>
+                        </div>
+                        <div style="text-align:right">
+                            <div style="font-size:0.8rem;color:var(--muted)">Extraction Quality</div>
+                            <div style="font-size:0.95rem;font-weight:600;color:var(--verified);margin-top:0.2rem">
+                                {{ trace_result.marks_valid }} / {{ trace_result.marks_found }} markers valid
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:0.25rem">
+                            <span>Confidence</span>
+                            <strong style="color:var(--verified)">{{ (trace_result.confidence * 100)|round }}%</strong>
+                        </div>
+                        <div style="height:10px;background:rgba(255,255,255,0.08);border-radius:5px;overflow:hidden">
+                            <div style="height:100%;width:{{ (trace_result.confidence * 100)|round }}%;background:#C6FF3D;border-radius:5px"></div>
+                        </div>
+                    </div>
+
+                    <div style="border-top:1px solid var(--line);padding-top:1rem">
+                        <h4 style="font-size:0.9rem;margin-bottom:0.6rem">Logged Views on Caller Projects</h4>
+                        {% if trace_result.logged_views %}
+                        <div style="overflow-x:auto">
+                            <table style="width:100%;font-size:0.82rem;border-collapse:collapse">
+                                <thead>
+                                    <tr style="border-bottom:1px solid var(--line);text-align:left;color:var(--muted)">
+                                        <th style="padding:0.4rem 0.5rem">Resource</th>
+                                        <th style="padding:0.4rem 0.5rem">Resource ID</th>
+                                        <th style="padding:0.4rem 0.5rem">Project ID</th>
+                                        <th style="padding:0.4rem 0.5rem">Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for v in trace_result.logged_views %}
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
+                                        <td style="padding:0.4rem 0.5rem;font-weight:600">{{ v.resource }}</td>
+                                        <td style="padding:0.4rem 0.5rem">#{{ v.resource_id }}</td>
+                                        <td style="padding:0.4rem 0.5rem">#{{ v.project_id }}</td>
+                                        <td style="padding:0.4rem 0.5rem;color:var(--muted)">{{ v.timestamp }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="muted-text" style="font-size:0.82rem">No logged views recorded on your projects.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-amber" style="color:#FFB020;background:rgba(255,176,32,0.1);border:1px solid rgba(255,176,32,0.3);padding:0.75rem;border-radius:6px">
+                    {{ trace_result.message or "no watermark found (text may have been retyped, stripped or paraphrased)" }}
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# ── Panel B: Authorship Proof (Everyone) ── #}
+    <div class="integrity-panel {% if active_tab == 'authorship' %}active{% endif %}" id="panel-authorship">
+        <div class="card" style="margin-bottom:1.5rem">
+            <h2 style="font-size:1.15rem;margin-bottom:0.5rem">Cryptographic Authorship Proof</h2>
+            <p class="muted-text" style="font-size:0.85rem;margin-bottom:1rem">
+                Verify original provenance of any text against registered artefacts in projects you can access.
+            </p>
+
+            <form method="POST" action="/integrity/authorship" style="display:flex;flex-direction:column;gap:1rem">
+                <div>
+                    <label style="font-size:0.82rem;color:var(--muted);display:block;margin-bottom:0.35rem">Paste text to verify origin</label>
+                    <textarea name="text" rows="5" required placeholder="Paste artefact text..." style="width:100%;font-size:0.85rem">{{ pasted_auth_text }}</textarea>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary">Verify Authorship</button>
+                </div>
+            </form>
+        </div>
+
+        {% if authorship_result is not none %}
+        <div class="card" style="border-color:{% if authorship_result.found %}var(--verified){% else %}var(--pending){% endif %};margin-bottom:1.5rem">
+            <h3 style="font-size:1.05rem;margin-bottom:0.75rem">Authorship Verification Result</h3>
+            {% if authorship_result.found %}
+                <div style="display:flex;flex-direction:column;gap:0.75rem">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+                        <div>
+                            <span class="meta-label">Earliest Author</span>
+                            <div style="font-size:1.15rem;font-weight:700;color:var(--text);margin-top:0.2rem">
+                                {{ authorship_result.author_name }}
+                            </div>
+                        </div>
+                        <div style="text-align:right">
+                            <span class="meta-label">Submission Timestamp</span>
+                            <div style="font-size:0.88rem;color:var(--muted);margin-top:0.2rem">
+                                {{ authorship_result.submitted_at }}
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if authorship_result.sha256 or authorship_result.artefact_hash %}
+                    {% set cur_hash = authorship_result.sha256 or authorship_result.artefact_hash %}
+                    <div style="margin-top:0.5rem">
+                        <span class="meta-label">Artefact SHA-256</span>
+                        <div style="margin-top:0.2rem">
+                            <span class="mono" title="{{ cur_hash }}" style="font-family:var(--font-mono);font-size:0.95rem;color:#3DD6FF">
+                                {{ cur_hash[:12] }}…
+                            </span>
+                            <span class="muted-text" style="font-size:0.75rem;margin-left:0.5rem">(hover for full hash)</span>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div style="border-top:1px solid var(--line);padding-top:0.75rem;margin-top:0.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+                        <a href="/ledger" class="chip chip-lime" style="text-decoration:none">View in Project Ledger →</a>
+                        <span class="muted-text" style="font-size:0.8rem">Verified against on-chain ledger entries.</span>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-amber" style="color:#FFB020;background:rgba(255,176,32,0.1);border:1px solid rgba(255,176,32,0.3);padding:0.75rem;border-radius:6px">
+                    no match
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    {# ── Panel C: Plagiarism & AI Check Preview ── #}
+    <div class="integrity-panel {% if active_tab == 'preview' %}active{% endif %}" id="panel-preview">
+        <div class="card" style="margin-bottom:1.5rem">
+            <h2 style="font-size:1.15rem;margin-bottom:0.5rem">Plagiarism &amp; AI-Declaration Preview</h2>
+            <p class="muted-text" style="font-size:0.85rem;margin-bottom:1rem">
+                Test draft work prior to formal milestone submission. Evaluates corpus shingle similarity and undisclosed AI markers.
+            </p>
+
+            <form method="POST" action="/integrity/check" style="display:flex;flex-direction:column;gap:1rem">
+                <div>
+                    <label style="font-size:0.82rem;color:var(--muted);display:block;margin-bottom:0.35rem">Work Text / Code / Specification</label>
+                    <textarea name="text" rows="5" required placeholder="Paste draft work to preview checks..." style="width:100%;font-size:0.85rem">{{ pasted_check_text }}</textarea>
+                </div>
+                <div>
+                    <label style="font-size:0.82rem;color:var(--muted);display:block;margin-bottom:0.35rem">AI-Use Declaration</label>
+                    <select name="ai_declaration" style="width:100%;max-width:400px">
+                        <option value="human" {% if ai_declaration == 'human' %}selected{% endif %}>Human (100% human-created)</option>
+                        <option value="ai_assisted" {% if ai_declaration == 'ai_assisted' %}selected{% endif %}>AI-assisted (human-authored with AI assistance)</option>
+                        <option value="agent_generated" {% if ai_declaration == 'agent_generated' %}selected{% endif %}>Agent-generated (directed by human)</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-secondary">Preview Check</button>
+                </div>
+            </form>
+        </div>
+
+        {% if preview_result is not none %}
+        <div class="card" style="border-color:{% if preview_result.reasons %}var(--broken){% else %}var(--verified){% endif %};margin-bottom:1.5rem">
+            <h3 style="font-size:1.05rem;margin-bottom:0.75rem">Preview Analysis Result</h3>
+
+            <div style="margin-bottom:1rem">
+                <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:0.25rem">
+                    <span>Similarity Score: <strong style="color:{% if preview_result.score >= 0.6 %}#FF4D4F{% else %}#C6FF3D{% endif %}">{{ "%.2f"|format(preview_result.score) }}</strong></span>
+                    <span class="muted-text">Flag Threshold: 0.60</span>
+                </div>
+                <div class="integrity-score-track">
+                    <div class="integrity-score-fill" style="width:{{ [((preview_result.score * 100)|round), 100]|min }}%;background:{% if preview_result.score >= 0.6 %}#FF4D4F{% else %}#C6FF3D{% endif %}"></div>
+                    <div class="integrity-score-threshold" title="0.60 Flag Threshold"></div>
+                </div>
+            </div>
+
+            <div style="margin-bottom:0.75rem">
+                <span class="meta-label" style="display:block;margin-bottom:0.35rem">Screening Reasons &amp; Flags</span>
+                {% if preview_result.reasons %}
+                    <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+                        {% for r in preview_result.reasons %}
+                            {% if r == 'similarity' %}
+                                <span class="chip chip-amber">Similarity {{ "%.2f"|format(preview_result.score) }}</span>
+                            {% elif r == 'possible_undisclosed_ai' %}
+                                <span class="chip chip-amber">Possible undisclosed AI (MOCKED heuristic)</span>
+                            {% else %}
+                                <span class="chip chip-amber">{{ r }}</span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <span class="chip chip-lime">No flags detected: clean submission</span>
+                {% endif %}
+            </div>
+
+            {% if preview_result.notice %}
+                <div class="alert alert-amber" style="margin-top:0.75rem">
+                    {{ preview_result.notice }}
+                </div>
+            {% elif preview_result.matched_title %}
+                <div style="margin-top:0.75rem;font-size:0.85rem;color:var(--text);border-top:1px solid var(--line);padding-top:0.6rem">
+                    Matched work: <strong>{{ preview_result.matched_title }}</strong> by {{ preview_result.matched_author_name }}
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/integrity.js"></script>
+{% endblock %}

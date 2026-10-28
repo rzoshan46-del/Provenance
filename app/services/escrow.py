@@ -60,13 +60,23 @@ def escrow_transition(
     )
     project_id = milestone["project_id"] if milestone else None
 
-    # Actor ID resolution
-    if isinstance(actor, (dict, sqlite3.Row)):
+    # Actor ID resolution — actor=None means system action
+    if actor is None:
+        actor_id = None
+        resolved_actor_type = "system"
+        human_owner_id = None
+    elif isinstance(actor, (dict, sqlite3.Row)):
         actor_id = actor["id"]
+        resolved_actor_type = "human"
+        human_owner_id = actor_id
     elif isinstance(actor, int):
         actor_id = actor
+        resolved_actor_type = "human"
+        human_owner_id = actor_id
     else:
         actor_id = None
+        resolved_actor_type = "system"
+        human_owner_id = None
 
     payload: Dict[str, Any] = {
         "milestone_id": escrow["milestone_id"],
@@ -80,8 +90,8 @@ def escrow_transition(
     ledger.append(
         action=ledger_action,
         actor_id=actor_id,
-        actor_type="human",
-        human_owner_id=actor_id,
+        actor_type=resolved_actor_type,
+        human_owner_id=human_owner_id,
         project_id=project_id,
         payload=payload,
     )

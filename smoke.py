@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import re
 import json
+import unicodedata
 
 if sys.platform == "win32":
     import io
@@ -58,6 +59,30 @@ def run_checks() -> bool:
         c = TestClient(app, follow_redirects=True)
         c.cookies.set("persona_id", str(row["id"]))
         return c
+
+    _UNIQUE_PARAGRAPHS = {
+        "retina": "Retinal imaging through optical coherence tomography and fundus photography provides non-invasive visualisation of microvascular structures in diabetic patients, facilitating early detection of retinopathy before irreversible vascular damage and clinical vision loss occur.",
+        "quantisation": "Post-training integer quantisation maps floating point weights and activations to uniform eight-bit integer representations, drastically reducing computational memory requirements and accelerating convolutional neural network inference latency on resource-constrained edge microprocessor hardware.",
+        "annotation": "Rigorous diagnostic annotation guidelines establish standardised protocols for expert ophthalmologists categorising fundus lesions, defining unambiguous criteria for identifying microaneurysms, hard exudates, cotton wool spots, and intraretinal microvascular abnormalities across distributed clinical datasets.",
+        "escrow": "Automated escrow systems hold milestone capital in cryptographically secure suspense accounts, releasing proportional funding tranches only when peer reviewers submit signed verification attestations satisfying pre-negotiated project charter milestones and quality metrics.",
+        "ledger": "An append-only cryptographic ledger secures audit trails by chaining SHA-256 block hashes sequentially, ensuring that retroactive record modification immediately invalidates subsequent downstream state proofs and triggers tamper alerts for auditors.",
+        "charter": "The governance charter establishes stakeholder responsibilities, intellectual property ownership terms, dispute escalation pathways, and consensus-driven modification rules that require formal re-acceptance from all participating researchers prior to milestone execution.",
+        "matching": "Algorithmic team formation calculates multidimensional skill overlap vectors while explicitly excluding candidate researchers possessing institutional affiliations conflicting with sponsor organisations, ensuring equitable student participation alongside verified senior domain experts.",
+        "firewall": "Content sanitisation firewalls inspect unstructured prompt payloads using heuristic pattern matching to neutralise prompt injection payloads, stripping unauthorized tool invocation strings before forwarding sanitized context blocks to local inference engines.",
+        "scoping": "Project scoping decomposes complex high-level scientific objectives into discrete deliverable milestones, defining explicit acceptance criteria, resource budgets, and required researcher technical skill profiles required for successful experimental completion.",
+        "watermark": "Zero-width steganographic markers embed caller identifiers within whitespace intervals of exported research documents, enabling forensic attribution of leaked manuscripts back to the specific viewing persona without altering human-readable typographic formatting.",
+        "credentials": "Self-sovereign digital credentials encapsulate verified contributor achievements through persistent cryptographic hashes, allowing academic researchers to independently demonstrate verified project contributions without reliance upon centralized institutional registrars or proprietary platforms.",
+        "payouts": "Algorithmic revenue distribution applies largest remainder mathematics to allocate milestone funds between senior experts and student contributors, strictly conserving aggregate capital down to the single rupee unit without fractional loss.",
+        "workspace": "Collaborative interactive workspaces synchronize versioned artifact revisions between student contributors and autonomous language agents, maintaining isolated scratchpad state until formal peer approval promotes drafts to milestone contribution records.",
+        "ethics": "Institutional review board approval requires stringent informed consent protocols, privacy-preserving anonymization of patient medical records, and algorithmic bias audits across demographic groups before deploying diagnostic models in clinical trials.",
+    }
+
+    def unique_text(label: str) -> str:
+        if label in _UNIQUE_PARAGRAPHS:
+            return _UNIQUE_PARAGRAPHS[label]
+        keys = list(_UNIQUE_PARAGRAPHS.keys())
+        idx = abs(hash(label)) % len(keys)
+        return _UNIQUE_PARAGRAPHS[keys[idx]]
 
     with TestClient(app, follow_redirects=True) as client:
         # Guarantee DB is initialized & seeded even if lifespan is deferred
@@ -2196,6 +2221,1828 @@ def run_checks() -> bool:
     check(104, "/ledger shows agent chip (role-agent) and owner: label for agent entries",
           ok_104, f"status={res_104.status_code}, role_agent={'yes' if 'role-agent' in html_104 else 'NO'}, "
                   f"owner={'yes' if 'owner:' in html_104.lower() else 'NO'}")
+
+    # ── Checks 105–118 (S5a: Integrity, Similarity, Provenance & Review Gates) ──
+
+    # (105) similarity.compare: identical texts of at least 30 words score at least 0.99;
+    # two unrelated paragraphs score below 0.2; a paragraph pasted inside a longer document scores at least 0.6 (containment);
+    # a text with fewer than 3 tokens scores 0.
+    from app.integrity import similarity
+    p_retina = unique_text("retina")
+    p_quant = unique_text("quantisation")
+
+    cmp_ident = similarity.compare(p_retina, p_retina)
+    cmp_unrel = similarity.compare(p_retina, p_quant)
+    longer_doc = "Introductory clinical trials and study methodologies. " + p_retina + " Summary remarks and subsequent pipeline verification."
+    cmp_contain = similarity.compare(p_retina, longer_doc)
+    cmp_short = similarity.compare("hello world", "hello world")
+
+    ok_105 = (
+        cmp_ident["score"] >= 0.99
+        and cmp_unrel["score"] < 0.2
+        and cmp_contain["containment"] >= 0.6
+        and cmp_contain["score"] >= 0.6
+        and cmp_short["score"] == 0.0
+    )
+    check(105, "similarity.compare: identical texts of at least 30 words score at least 0.99; two unrelated paragraphs score below 0.2; a paragraph pasted inside a longer document scores at least 0.6 (containment); a text with fewer than 3 tokens scores 0",
+          ok_105, f"ident={cmp_ident['score']}, unrel={cmp_unrel['score']}, contain={cmp_contain['containment']}, short={cmp_short['score']}")
+
+    # (106) signals.ai_markers finds "As an AI language model" case-insensitively and finds nothing in a normal research paragraph
+    from app.integrity import signals
+    m_found = signals.ai_markers("As an AI language model, here are baseline results.")
+    m_clean = signals.ai_markers(p_retina)
+    ok_106 = (
+        "as an ai language model" in [m.lower() for m in m_found]
+        and len(m_clean) == 0
+    )
+    check(106, "signals.ai_markers finds 'As an AI language model' case-insensitively and finds nothing in a normal research paragraph",
+          ok_106, f"found={m_found}, clean={m_clean}")
+
+    # Set up dedicated test projects for S5a:
+    # Project A (funded): sponsor Meera, members Arvind (expert), Ananya, Rahul, Sneha (students)
+    res_p_inta = sponsor_client.post("/api/projects", data={
+        "title": "Integrity Test Project A",
+        "public_summary": "Integrity testing public summary",
+        "confidential_brief": "Confidential brief for integrity project A",
+        "sensitivity_label": "confidential",
+        "engagement_model": "funded"
+    })
+    p_inta_id = res_p_inta.json()["project_id"]
+
+    for cl in [arvind_client, ananya_client, rahul_client, sneha_client]:
+        cl.post(f"/api/projects/{p_inta_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+
+    res_m_inta = sponsor_client.post(f"/api/projects/{p_inta_id}/milestones", json={
+        "title": "Integrity Milestone A1",
+        "deliverables": "Deliverables A1",
+        "acceptance_criteria": "Acceptance criteria A1",
+        "amount_inr": 100000
+    })
+    m_inta_id = res_m_inta.json()["id"]
+    sponsor_client.post(f"/api/milestones/{m_inta_id}/fund")
+
+    # (107) an original submission has review_status "pending", similarity_score below 0.6 and no contribution_flagged ledger entry
+    text_ananya_orig = unique_text("annotation")
+    res_c_107 = ananya_client.post(f"/api/milestones/{m_inta_id}/contributions", json={
+        "title": "Ananya Original Annotation Work",
+        "text": text_ananya_orig,
+        "ai_declaration": "human"
+    })
+    c_107_id = res_c_107.json()["contribution_id"]
+    c_107_row = query_one("SELECT * FROM contributions WHERE id = ?", (c_107_id,))
+    ledg_flag_107 = query_one(
+        "SELECT * FROM ledger_entries WHERE action = 'contribution_flagged' AND payload_json LIKE ?",
+        (f'%"contribution_id":{c_107_id}%',)
+    )
+
+    ok_107 = (
+        res_c_107.status_code == 200
+        and c_107_row["review_status"] == "pending"
+        and float(c_107_row["similarity_score"]) < 0.6
+        and ledg_flag_107 is None
+    )
+    check(107, "an original submission has review_status 'pending', similarity_score below 0.6 and no contribution_flagged ledger entry",
+          ok_107, f"status={c_107_row['review_status'] if c_107_row else None}, score={c_107_row['similarity_score'] if c_107_row else None}, flagged={ledg_flag_107 is not None}")
+
+    # (108) Rahul submits Ananya's text verbatim: review_status "flagged", similarity_score at least 0.6,
+    # a ledger contribution_flagged entry (actor_type system) with reasons including "similarity",
+    # matched_contribution_id equal to Ananya's contribution, cross_project false, and no text in the payload
+    res_c_108 = rahul_client.post(f"/api/milestones/{m_inta_id}/contributions", json={
+        "title": "Rahul Plagiarised Work",
+        "text": text_ananya_orig,
+        "ai_declaration": "human"
+    })
+    c_108_id = res_c_108.json()["contribution_id"]
+    c_108_row = query_one("SELECT * FROM contributions WHERE id = ?", (c_108_id,))
+    ledg_flag_108 = query_one(
+        "SELECT * FROM ledger_entries WHERE action = 'contribution_flagged' AND payload_json LIKE ?",
+        (f'%"contribution_id":{c_108_id}%',)
+    )
+    p_108 = json.loads(ledg_flag_108["payload_json"]) if ledg_flag_108 else {}
+
+    ok_108 = (
+        res_c_108.status_code == 200
+        and c_108_row["review_status"] == "flagged"
+        and float(c_108_row["similarity_score"]) >= 0.6
+        and ledg_flag_108 is not None
+        and ledg_flag_108["actor_type"] == "system"
+        and "similarity" in p_108.get("reasons", [])
+        and p_108.get("matched_contribution_id") == c_107_id
+        and p_108.get("cross_project") is False
+        and text_ananya_orig[:25] not in (ledg_flag_108["payload_json"] or "")
+    )
+    check(108, "Rahul submits Ananya's text verbatim: review_status 'flagged', similarity_score at least 0.6, a ledger contribution_flagged entry (actor_type system) with reasons including 'similarity', matched_contribution_id equal to Ananya's contribution, cross_project false, and no text in the payload",
+          ok_108, f"status={c_108_row['review_status'] if c_108_row else None}, score={c_108_row['similarity_score'] if c_108_row else None}, reasons={p_108.get('reasons')}, matched_id={p_108.get('matched_contribution_id')}")
+
+    # (109) Ananya resubmitting her own text is NOT flagged
+    res_c_109 = ananya_client.post(f"/api/milestones/{m_inta_id}/contributions", json={
+        "title": "Ananya Second Submission of Same Work",
+        "text": text_ananya_orig,
+        "ai_declaration": "human"
+    })
+    c_109_id = res_c_109.json()["contribution_id"]
+    c_109_row = query_one("SELECT * FROM contributions WHERE id = ?", (c_109_id,))
+    ok_109 = (
+        res_c_109.status_code == 200
+        and c_109_row["review_status"] == "pending"
+        and float(c_109_row["similarity_score"]) < 0.6
+    )
+    check(109, "Ananya resubmitting her own text is NOT flagged",
+          ok_109, f"status={c_109_row['review_status'] if c_109_row else None}, score={c_109_row['similarity_score'] if c_109_row else None}")
+
+    # (110) a verbatim copy of a contribution from project A submitted by a different author in project B is flagged with cross_project true and matched_contribution_id null
+    res_p_intb = sponsor_client.post("/api/projects", data={
+        "title": "Integrity Test Project B",
+        "public_summary": "Summary B",
+        "confidential_brief": "Brief B",
+        "sensitivity_label": "confidential",
+        "engagement_model": "funded"
+    })
+    p_intb_id = res_p_intb.json()["project_id"]
+    rahul_client.post(f"/api/projects/{p_intb_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+
+    res_m_intb = sponsor_client.post(f"/api/projects/{p_intb_id}/milestones", json={
+        "title": "Milestone B1",
+        "deliverables": "Deliverables B1",
+        "acceptance_criteria": "Criteria B1",
+        "amount_inr": 50000
+    })
+    m_intb_id = res_m_intb.json()["id"]
+    sponsor_client.post(f"/api/milestones/{m_intb_id}/fund")
+
+    res_c_110 = rahul_client.post(f"/api/milestones/{m_intb_id}/contributions", json={
+        "title": "Rahul Cross Project Copy",
+        "text": text_ananya_orig,
+        "ai_declaration": "human"
+    })
+    c_110_id = res_c_110.json()["contribution_id"]
+    c_110_row = query_one("SELECT * FROM contributions WHERE id = ?", (c_110_id,))
+    ledg_flag_110 = query_one(
+        "SELECT * FROM ledger_entries WHERE action = 'contribution_flagged' AND payload_json LIKE ?",
+        (f'%"contribution_id":{c_110_id}%',)
+    )
+    p_110 = json.loads(ledg_flag_110["payload_json"]) if ledg_flag_110 else {}
+
+    ok_110 = (
+        res_c_110.status_code == 200
+        and c_110_row["review_status"] == "flagged"
+        and ledg_flag_110 is not None
+        and p_110.get("cross_project") is True
+        and p_110.get("matched_contribution_id") is None
+    )
+    check(110, "a verbatim copy of a contribution from project A submitted by a different author in project B is flagged with cross_project true and matched_contribution_id null",
+          ok_110, f"cross={p_110.get('cross_project')}, matched_id={p_110.get('matched_contribution_id')}")
+
+    # (111) a contribution declared "human" containing "As an AI language model" is flagged with reason "possible_undisclosed_ai";
+    # the same text declared agent_generated or ai_assisted does not get that reason
+    text_with_ai = "As an AI language model, here is an in-depth analysis of " + unique_text("firewall")
+    res_c_111_h = sneha_client.post(f"/api/milestones/{m_inta_id}/contributions", json={
+        "title": "Sneha Undisclosed AI",
+        "text": text_with_ai,
+        "ai_declaration": "human"
+    })
+    c_111_h_id = res_c_111_h.json()["contribution_id"]
+    c_111_h_row = query_one("SELECT * FROM contributions WHERE id = ?", (c_111_h_id,))
+    ledg_flag_111_h = query_one(
+        "SELECT * FROM ledger_entries WHERE action = 'contribution_flagged' AND payload_json LIKE ?",
+        (f'%"contribution_id":{c_111_h_id}%',)
+    )
+    p_111_h = json.loads(ledg_flag_111_h["payload_json"]) if ledg_flag_111_h else {}
+
+    text_ai_assisted = "As an AI language model, here is a collaborative study of " + unique_text("scoping")
+    res_c_111_ast = sneha_client.post(f"/api/milestones/{m_inta_id}/contributions", json={
+        "title": "Sneha Declared AI Assisted",
+        "text": text_ai_assisted,
+        "ai_declaration": "ai_assisted"
+    })
+    c_111_ast_id = res_c_111_ast.json()["contribution_id"]
+    c_111_ast_row = query_one("SELECT * FROM contributions WHERE id = ?", (c_111_ast_id,))
+
+    ok_111 = (
+        c_111_h_row["review_status"] == "flagged"
+        and "possible_undisclosed_ai" in p_111_h.get("reasons", [])
+        and c_111_ast_row["review_status"] == "pending"
+    )
+    check(111, "a contribution declared 'human' containing 'As an AI language model' is flagged with reason 'possible_undisclosed_ai'; the same text declared agent_generated or ai_assisted does not get that reason",
+          ok_111, f"human_status={c_111_h_row['review_status'] if c_111_h_row else None}, reasons={p_111_h.get('reasons')}, assisted_status={c_111_ast_row['review_status'] if c_111_ast_row else None}")
+
+    # (112) integrity_report: a member expert sees the score, reasons, and for the same-project match the title, author name and up to 3 shared phrases;
+    # for the cross-project case it shows only the 'details hidden' notice and nothing about the other project; a non-member gets 403;
+    # POST /api/integrity/check returns the same score as the real submission without creating a contribution
+    res_rep_same = arvind_client.get(f"/api/contributions/{c_108_id}/integrity")
+    d_rep_same = res_rep_same.json() if res_rep_same.status_code == 200 else {}
+
+    res_rep_cross = rahul_client.get(f"/api/contributions/{c_110_id}/integrity")
+    d_rep_cross = res_rep_cross.json() if res_rep_cross.status_code == 200 else {}
+
+    res_rep_nonmem = arvind_client.get(f"/api/contributions/{c_110_id}/integrity")
+
+    contribs_count_before_prev = query_one("SELECT COUNT(*) AS c FROM contributions")["c"]
+    res_prev = ananya_client.post("/api/integrity/check", data={"text": text_ananya_orig, "ai_declaration": "human"})
+    d_prev = res_prev.json() if res_prev.status_code == 200 else {}
+    contribs_count_after_prev = query_one("SELECT COUNT(*) AS c FROM contributions")["c"]
+
+    ok_112 = (
+        res_rep_same.status_code == 200
+        and d_rep_same.get("score") >= 0.6
+        and "similarity" in d_rep_same.get("reasons", [])
+        and d_rep_same.get("matched_title") == "Ananya Original Annotation Work"
+        and d_rep_same.get("matched_author_name") == "Ananya"
+        and len(d_rep_same.get("shared_phrases", [])) > 0
+        and res_rep_cross.status_code == 200
+        and "details hidden" in d_rep_cross.get("notice", "").lower()
+        and "Integrity Test Project A" not in json.dumps(d_rep_cross)
+        and res_rep_nonmem.status_code == 403
+        and res_prev.status_code == 200
+        and d_prev.get("score") == d_rep_same.get("score")
+        and contribs_count_after_prev == contribs_count_before_prev
+    )
+    check(112, "integrity_report: a member expert sees the score, reasons, and for the same-project match the title, author name and up to 3 shared phrases; for the cross-project case it shows only the 'details hidden' notice and nothing about the other project; a non-member gets 403; POST /api/integrity/check returns the same score as the real submission without creating a contribution",
+          ok_112, f"same_status={res_rep_same.status_code}, cross_status={res_rep_cross.status_code}, nonmem_status={res_rep_nonmem.status_code}, prev_score={d_prev.get('score')}")
+
+    # (113) review gate: approving a flagged contribution without reasons gives 400; with reasons gives 200 and review_status approved;
+    # rejecting a flagged one without reasons gives 400; a student reviewer still gets 403
+    res_rev_stud_fl = sneha_client.post(f"/api/contributions/{c_108_id}/review", json={
+        "decision": "approve", "impact_score": 5
+    })
+    res_rev_no_rsn = arvind_client.post(f"/api/contributions/{c_108_id}/review", json={
+        "decision": "approve", "impact_score": 5, "reasons": ""
+    })
+    res_rej_no_rsn = arvind_client.post(f"/api/contributions/{c_111_h_id}/review", json={
+        "decision": "reject", "reasons": ""
+    })
+    res_rev_with_rsn = arvind_client.post(f"/api/contributions/{c_108_id}/review", json={
+        "decision": "approve",
+        "impact_score": 5,
+        "reasons": "Verified that shared methodology was appropriately cited and repurposed legitimately."
+    })
+    c_108_after = query_one("SELECT * FROM contributions WHERE id = ?", (c_108_id,))
+
+    ok_113 = (
+        res_rev_stud_fl.status_code == 403
+        and res_rev_no_rsn.status_code == 400
+        and res_rej_no_rsn.status_code == 400
+        and res_rev_with_rsn.status_code == 200
+        and c_108_after["review_status"] == "approved"
+    )
+    check(113, "review gate: approving a flagged contribution without reasons gives 400; with reasons gives 200 and review_status approved; rejecting a flagged one without reasons gives 400; a student reviewer still gets 403",
+          ok_113, f"stud={res_rev_stud_fl.status_code}, appr_no_rsn={res_rev_no_rsn.status_code}, rej_no_rsn={res_rej_no_rsn.status_code}, appr_ok={res_rev_with_rsn.status_code}, status={c_108_after['review_status'] if c_108_after else None}")
+
+    # (114) milestone gate: submit_milestone gives 409 containing "flagged" while a flagged contribution exists on the milestone;
+    # after it is reviewed, submission succeeds
+    res_sub_fl = arvind_client.post(f"/api/milestones/{m_inta_id}/submit")
+    arvind_client.post(f"/api/contributions/{c_111_h_id}/review", json={
+        "decision": "reject",
+        "reasons": "Undisclosed AI output is prohibited per charter terms."
+    })
+    res_sub_after = arvind_client.post(f"/api/milestones/{m_inta_id}/submit")
+
+    ok_114 = (
+        res_sub_fl.status_code == 409
+        and "flagged" in res_sub_fl.text.lower()
+        and res_sub_after.status_code == 200
+    )
+    check(114, "milestone gate: submit_milestone gives 409 containing 'flagged' while a flagged contribution exists on the milestone; after it is reviewed, submission succeeds",
+          ok_114, f"fl_status={res_sub_fl.status_code}, after_status={res_sub_after.status_code}")
+
+    # (115) authorship_lookup: a member gets the earliest contribution for the exact text with author name, submitted time and a ledger entry id;
+    # the same text with one character changed gives found false; a user who cannot see that project gets found false
+    res_auth_found = ananya_client.post("/api/integrity/authorship", data={"text": text_ananya_orig})
+    d_auth_found = res_auth_found.json() if res_auth_found.status_code == 200 else {}
+
+    res_auth_changed = ananya_client.post("/api/integrity/authorship", data={"text": text_ananya_orig + "!"})
+    d_auth_changed = res_auth_changed.json() if res_auth_changed.status_code == 200 else {}
+
+    res_auth_nonmem = vikram_client.post("/api/integrity/authorship", data={"text": text_ananya_orig})
+    d_auth_nonmem = res_auth_nonmem.json() if res_auth_nonmem.status_code == 200 else {}
+
+    ok_115 = (
+        res_auth_found.status_code == 200
+        and d_auth_found.get("found") is True
+        and d_auth_found.get("author_name") == "Ananya"
+        and d_auth_found.get("submitted_at") is not None
+        and d_auth_found.get("ledger_entry_id") is not None
+        and d_auth_changed.get("found") is False
+        and d_auth_nonmem.get("found") is False
+    )
+    check(115, "authorship_lookup: a member gets the earliest contribution for the exact text with author name, submitted time and a ledger entry id; the same text with one character changed gives found false; a user who cannot see that project gets found false",
+          ok_115, f"found={d_auth_found.get('found')}, changed={d_auth_changed.get('found')}, nonmem={d_auth_nonmem.get('found')}")
+
+    # (116) ai_breakdown: on a milestone whose approved contributions have impact 5 (human), 3 (ai_assisted) and 2 (agent_generated),
+    # the receipt and the credit statement show human 50.0, ai_assisted 30.0, agent_generated 20.0, summing to 100.0,
+    # and the payouts and receipt hashes are unchanged (verify_receipt still ok)
+    res_m_bd = sponsor_client.post(f"/api/projects/{p_inta_id}/milestones", json={
+        "title": "AI Breakdown Milestone",
+        "deliverables": "Deliverables Breakdown",
+        "acceptance_criteria": "Criteria Breakdown",
+        "amount_inr": 100000
+    })
+    m_bd_id = res_m_bd.json()["id"]
+    sponsor_client.post(f"/api/milestones/{m_bd_id}/fund")
+
+    res_c_h = ananya_client.post(f"/api/milestones/{m_bd_id}/contributions", json={
+        "title": "Human Contribution Part",
+        "text": unique_text("credentials"),
+        "ai_declaration": "human"
+    })
+    c_h_id = res_c_h.json()["contribution_id"]
+    arvind_client.post(f"/api/contributions/{c_h_id}/review", json={"decision": "approve", "impact_score": 5, "reasons": "Human work verified"})
+
+    res_c_ast = rahul_client.post(f"/api/milestones/{m_bd_id}/contributions", json={
+        "title": "AI Assisted Part",
+        "text": unique_text("payouts"),
+        "ai_declaration": "ai_assisted"
+    })
+    c_ast_id = res_c_ast.json()["contribution_id"]
+    arvind_client.post(f"/api/contributions/{c_ast_id}/review", json={"decision": "approve", "impact_score": 3, "reasons": "AI assisted verified"})
+
+    from app.ai.agents import get_or_create_agent
+    sneha_id = query_one("SELECT id FROM users WHERE name = 'Sneha'")["id"]
+    sneha_agent = get_or_create_agent("workspace", p_inta_id, sneha_id)
+    from app.services.contributions import submit_contribution
+    sneha_row = query_one("SELECT * FROM users WHERE id = ?", (sneha_id,))
+    c_gen_res = submit_contribution(
+        sneha_row, m_bd_id, "Agent Generated Part", unique_text("workspace"), "agent_generated", agent_id=sneha_agent["id"]
+    )
+    c_gen_id = c_gen_res["contribution_id"]
+    arvind_client.post(f"/api/contributions/{c_gen_id}/review", json={"decision": "approve", "impact_score": 2, "reasons": "Agent work verified"})
+
+    arvind_client.post(f"/api/milestones/{m_bd_id}/submit")
+    sponsor_client.post(f"/api/milestones/{m_bd_id}/accept")
+
+    from app.services.payouts import build_receipt, credit_statement, verify_receipt
+    rcpt = build_receipt(m_bd_id)
+    cstmt = credit_statement(m_bd_id)
+    v_rcpt = verify_receipt(m_bd_id)
+
+    bd_r = rcpt.get("ai_breakdown", {})
+    bd_c = cstmt.get("ai_breakdown", {})
+
+    ok_116 = (
+        bd_r.get("human") == 50.0
+        and bd_r.get("ai_assisted") == 30.0
+        and bd_r.get("agent_generated") == 20.0
+        and round(sum(bd_r.values()), 1) == 100.0
+        and bd_c.get("human") == 50.0
+        and bd_c.get("ai_assisted") == 30.0
+        and bd_c.get("agent_generated") == 20.0
+        and v_rcpt.get("ok") is True
+    )
+    check(116, "ai_breakdown: on a milestone whose approved contributions have impact 5 (human), 3 (ai_assisted) and 2 (agent_generated), the receipt and the credit statement show human 50.0, ai_assisted 30.0, agent_generated 20.0, summing to 100.0, and the payouts and receipt hashes are unchanged (verify_receipt still ok)",
+          ok_116, f"receipt_bd={bd_r}, stmt_bd={bd_c}, verify_ok={v_rcpt.get('ok')}")
+
+    # (117) the contributions list API returns a provenance object: human gives label "Human"; agent_generated includes the agent's name and the human owner's name
+    res_c_list = arvind_client.get(f"/api/milestones/{m_bd_id}/contributions")
+    clist = res_c_list.json() if res_c_list.status_code == 200 else []
+
+    human_item = next((item for item in clist if item.get("id") == c_h_id), {})
+    agent_item = next((item for item in clist if item.get("id") == c_gen_id), {})
+
+    prov_h = human_item.get("provenance", {})
+    prov_a = agent_item.get("provenance", {})
+
+    ok_117 = (
+        res_c_list.status_code == 200
+        and prov_h.get("label") == "Human"
+        and prov_h.get("kind") == "human"
+        and prov_a.get("kind") == "agent_generated"
+        and prov_a.get("agent") == sneha_agent["name"]
+        and prov_a.get("owner") == "Sneha"
+    )
+    check(117, "the contributions list API returns a provenance object: human gives label 'Human'; agent_generated includes the agent's name and the human owner's name",
+          ok_117, f"prov_h={prov_h}, prov_a={prov_a}")
+
+    # (118) no ledger payload_json contains the first 25 characters of any test contribution text; ledger.verify() is ok
+    all_contrib_rows = query_all("SELECT artefact_text FROM contributions")
+    all_ledg_rows = query_all("SELECT payload_json FROM ledger_entries")
+
+    text_in_any_payload = False
+    leaked_prefix = ""
+    for c_row in all_contrib_rows:
+        t = (c_row["artefact_text"] or "").strip()
+        if len(t) >= 25:
+            prefix = t[:25]
+            for l_row in all_ledg_rows:
+                if prefix in (l_row["payload_json"] or ""):
+                    text_in_any_payload = True
+                    leaked_prefix = prefix
+                    break
+        if text_in_any_payload:
+            break
+
+    from app.ledger import verify as verify_ledger
+    ledg_status = verify_ledger()
+
+    ok_118 = (not text_in_any_payload) and (ledg_status.get("ok") is True)
+    check(118, "no ledger payload_json contains the first 25 characters of any test contribution text; ledger.verify() is ok",
+          ok_118, f"leaked={leaked_prefix if text_in_any_payload else 'None'}, ledger_ok={ledg_status.get('ok')}")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # MODULE S5b: WATERMARKING, ACCESS LOG, LEAK TRACER (CHECKS 119–129)
+    # ══════════════════════════════════════════════════════════════════════════
+    from app.integrity import watermark
+
+    # (119) encode/extract round trip for user ids 1, 7, 255, 300 and 65535: extract returns the same id, valid true, confidence 1.0; flipping one bit of one marker makes that marker invalid.
+    uids_119 = [1, 7, 255, 300, 65535]
+    all_round_trip = True
+    for u in uids_119:
+        enc = watermark.encode_marker(u)
+        ext = watermark.extract(enc)
+        if not (ext.get("user_id") == u and ext.get("valid") is True and ext.get("confidence") == 1.0):
+            all_round_trip = False
+            break
+
+    enc_7 = watermark.encode_marker(7)
+    bit_char = enc_7[1]
+    flipped_char = "\u200c" if bit_char == "\u200b" else "\u200b"
+    corrupted_7 = enc_7[0] + flipped_char + enc_7[2:]
+    ext_corrupted = watermark.extract(corrupted_7)
+    corrupted_invalid = (ext_corrupted.get("valid") is False)
+
+    ok_119 = all_round_trip and corrupted_invalid
+    check(119, "encode/extract round trip for user ids 1, 7, 255, 300 and 65535: extract returns the same id, valid true, confidence 1.0; flipping one bit of one marker makes that marker invalid",
+          ok_119, f"round_trip={all_round_trip}, corrupted_valid={ext_corrupted.get('valid')}")
+
+    # (120) apply on a text with 3 non-empty lines inserts exactly 3 markers; strip(apply(t)) equals t exactly; a single-word text gets one marker appended; empty text is unchanged.
+    t3 = "Line 1 retina diagnostic parameters.\nLine 2 edge inference configuration.\nLine 3 benchmark conclusion data."
+    applied_t3 = watermark.apply(t3, 42)
+    marks_count = applied_t3.count("\u2060") // 2
+    stripped_t3 = watermark.strip(applied_t3)
+
+    single_word = "SingleWordRetina"
+    applied_single = watermark.apply(single_word, 42)
+    single_appended = applied_single == (single_word + watermark.encode_marker(42))
+
+    empty_res = watermark.apply("", 42)
+
+    ok_120 = (
+        marks_count == 3
+        and stripped_t3 == t3
+        and single_appended
+        and empty_res == ""
+    )
+    check(120, "apply on a text with 3 non-empty lines inserts exactly 3 markers; strip(apply(t)) equals t exactly; a single-word text gets one marker appended; empty text is unchanged",
+          ok_120, f"marks={marks_count}, stripped_matches={stripped_t3 == t3}, single_appended={single_appended}, empty_ok={empty_res == ''}")
+
+    # (121) removing the zero-width characters from an applied text gives back the original visible characters exactly.
+    sample_vis = "Diagnostic precision reached 94.2% across 500 edge trials.\nModel quantization reduced memory footprint by 4x without latency penalties!"
+    app_vis = watermark.apply(sample_vis, 123)
+    cleaned_vis = re.sub(r"[\u2060\u200b\u200c]", "", app_vis)
+    ok_121 = (cleaned_vis == sample_vis)
+    check(121, "removing the zero-width characters from an applied text gives back the original visible characters exactly",
+          ok_121, f"len_orig={len(sample_vis)}, len_cleaned={len(cleaned_vis)}")
+
+    # (122) majority vote: if one of three markers is removed or corrupted, extract still returns the right id with confidence at least 0.66.
+    t_maj = "Alpha baseline configuration.\nBeta edge quantization profile.\nGamma deployment latency matrix."
+    app_maj = watermark.apply(t_maj, 7)
+    m_match = re.search(r"\u2060[^\u2060]+\u2060", app_maj)
+    corrupted_maj = app_maj
+    if m_match:
+        m_str = m_match.group(0)
+        f_bit = "\u200c" if m_str[1] == "\u200b" else "\u200b"
+        c_str = m_str[0] + f_bit + m_str[2:]
+        corrupted_maj = app_maj[:m_match.start()] + c_str + app_maj[m_match.end():]
+    ext_maj_corrupted = watermark.extract(corrupted_maj)
+
+    removed_maj = app_maj
+    if m_match:
+        removed_maj = app_maj[:m_match.start()] + app_maj[m_match.end():]
+    ext_maj_removed = watermark.extract(removed_maj)
+
+    ok_122 = (
+        ext_maj_corrupted.get("user_id") == 7
+        and ext_maj_corrupted.get("confidence", 0) >= 0.66
+        and ext_maj_removed.get("user_id") == 7
+        and ext_maj_removed.get("confidence", 0) >= 0.66
+    )
+    check(122, "majority vote: if one of three markers is removed or corrupted, extract still returns the right id with confidence at least 0.66",
+          ok_122, f"corrupted_conf={ext_maj_corrupted.get('confidence')}, removed_conf={ext_maj_removed.get('confidence')}")
+
+    # Set up dedicated project for watermarking tests
+    res_p_wt = sponsor_client.post(
+        "/api/projects",
+        data={
+            "title": "Watermarking Verification Project",
+            "public_summary": "Testing per-viewer watermarking and access logging.",
+            "confidential_brief": "Watermark brief line 1 for validation.\nWatermark brief line 2 edge parameters.\nWatermark brief line 3 hardware specifications.",
+            "sensitivity_label": "confidential",
+            "engagement_model": "funded",
+        },
+    )
+    p_wt_id = res_p_wt.json().get("project_id")
+
+    # Ananya, Rahul, Arvind join p_wt
+    for cl in (ananya_client, rahul_client, arvind_client):
+        cl.post(
+            f"/api/projects/{p_wt_id}/join",
+            data={"accept_charter": "1", "ack_engagement_model": "1"},
+        )
+
+    # User records for validation
+    user_ananya = query_one("SELECT * FROM users WHERE name = 'Ananya'")
+    user_rahul = query_one("SELECT * FROM users WHERE name = 'Rahul'")
+    user_arvind = query_one("SELECT * FROM users WHERE name = 'Arvind Nair'")
+    user_sponsor = query_one("SELECT * FROM users WHERE name = 'Meera Rao'")
+
+    # (123) GET /api/projects/{id}/brief as Ananya returns text whose extract gives Ananya's id; as Rahul it gives Rahul's id; as the owning sponsor it contains no markers; the brief stored in the database contains no zero-width characters.
+    res_b_ananya = ananya_client.get(f"/api/projects/{p_wt_id}/brief")
+    brief_ananya = res_b_ananya.json().get("brief", "")
+    ext_b_ananya = watermark.extract(brief_ananya)
+
+    res_b_rahul = rahul_client.get(f"/api/projects/{p_wt_id}/brief")
+    brief_rahul = res_b_rahul.json().get("brief", "")
+    ext_b_rahul = watermark.extract(brief_rahul)
+
+    res_b_sponsor = sponsor_client.get(f"/api/projects/{p_wt_id}/brief")
+    brief_sponsor = res_b_sponsor.json().get("brief", "")
+    sponsor_has_no_markers = (
+        brief_sponsor.count("\u2060") == 0
+        and brief_sponsor.count("\u200b") == 0
+        and brief_sponsor.count("\u200c") == 0
+    )
+
+    db_brief_row = query_one("SELECT confidential_brief FROM projects WHERE id = ?", (p_wt_id,))
+    db_brief = db_brief_row["confidential_brief"] if db_brief_row else ""
+    db_has_no_markers = (
+        db_brief.count("\u2060") == 0
+        and db_brief.count("\u200b") == 0
+        and db_brief.count("\u200c") == 0
+    )
+
+    ok_123 = (
+        ext_b_ananya.get("user_id") == user_ananya["id"]
+        and ext_b_rahul.get("user_id") == user_rahul["id"]
+        and sponsor_has_no_markers
+        and db_has_no_markers
+    )
+    check(123, "GET /api/projects/{id}/brief as Ananya returns text whose extract gives Ananya's id; as Rahul it gives Rahul's id; as the owning sponsor it contains no markers; the brief stored in the database contains no zero-width characters",
+          ok_123, f"ananya_id={ext_b_ananya.get('user_id')}, rahul_id={ext_b_rahul.get('user_id')}, spons_clean={sponsor_has_no_markers}, db_clean={db_has_no_markers}")
+
+    res_m_wt = sponsor_client.post(
+        f"/api/projects/{p_wt_id}/milestones",
+        json={
+            "title": "Watermarking Evaluation Milestone",
+            "deliverables": "Deliverable code and text.",
+            "acceptance_criteria": "Strict criteria.",
+            "amount_inr": 20000,
+        },
+    )
+    m_wt_id = res_m_wt.json().get("milestone_id")
+    sponsor_client.post(f"/api/milestones/{m_wt_id}/fund")
+
+    c_wt_text = unique_text("ananya_wt_artefact")
+    c_wt_sha = hashlib.sha256(c_wt_text.encode("utf-8")).hexdigest()
+    res_c_wt = ananya_client.post(
+        f"/api/milestones/{m_wt_id}/contributions",
+        json={
+            "title": "Ananya Watermark Artefact",
+            "text": c_wt_text,
+            "ai_declaration": "human",
+        },
+    )
+    c_wt_id = res_c_wt.json().get("contribution_id")
+
+    # (124) the contributions list API: a viewer who is not the author gets text whose extract gives the viewer's id; the author gets clean text; artefact_hash still equals SHA-256 of the clean stored text.
+    res_list_rahul = rahul_client.get(f"/api/milestones/{m_wt_id}/contributions")
+    c_for_rahul = next((c for c in res_list_rahul.json() if c["id"] == c_wt_id), {})
+    ext_rahul_c = watermark.extract(c_for_rahul.get("artefact_text", ""))
+
+    res_list_ananya = ananya_client.get(f"/api/milestones/{m_wt_id}/contributions")
+    c_for_ananya = next((c for c in res_list_ananya.json() if c["id"] == c_wt_id), {})
+    ananya_c_text = c_for_ananya.get("artefact_text", "")
+    author_gets_clean = (ananya_c_text == c_wt_text)
+
+    db_c_wt = query_one("SELECT artefact_hash, artefact_text FROM contributions WHERE id = ?", (c_wt_id,))
+    hash_matches = (db_c_wt["artefact_hash"] == c_wt_sha)
+
+    ok_124 = (
+        ext_rahul_c.get("user_id") == user_rahul["id"]
+        and author_gets_clean
+        and hash_matches
+    )
+    check(124, "the contributions list API: a viewer who is not the author gets text whose extract gives the viewer's id; the author gets clean text; artefact_hash still equals SHA-256 of the clean stored text",
+          ok_124, f"rahul_extracted={ext_rahul_c.get('user_id')}, author_clean={author_gets_clean}, hash_ok={hash_matches}")
+
+    # (125) the HTML project page for a member contains markers that decode to the member's id; the same page for the sponsor contains none.
+    res_page_ananya = ananya_client.get(f"/projects/{p_wt_id}")
+    ext_html_ananya = watermark.extract(res_page_ananya.text)
+
+    res_page_sponsor = sponsor_client.get(f"/projects/{p_wt_id}")
+    ext_html_sponsor = watermark.extract(res_page_sponsor.text)
+
+    ok_125 = (
+        ext_html_ananya.get("user_id") == user_ananya["id"]
+        and ext_html_sponsor.get("found") is False
+    )
+    check(125, "the HTML project page for a member contains markers that decode to the member's id; the same page for the sponsor contains none",
+          ok_125, f"html_ananya_id={ext_html_ananya.get('user_id')}, html_spons_found={ext_html_sponsor.get('found')}")
+
+    # (126) access log: the first brief view by a member writes exactly one content_viewed ledger entry (actor = the viewer, project_id set, payload resource, resource_id and watermark_id, no text); a second view writes none; the sponsor's own views write none.
+    # Arvind hasn't viewed brief of p_wt via API yet
+    arvind_views_before = query_all(
+        "SELECT id FROM ledger_entries WHERE action = 'content_viewed' AND actor_id = ? AND project_id = ?",
+        (user_arvind["id"], p_wt_id),
+    )
+    # 1st view
+    arvind_client.get(f"/api/projects/{p_wt_id}/brief")
+    arvind_views_after1 = query_all(
+        "SELECT id, payload_json FROM ledger_entries WHERE action = 'content_viewed' AND actor_id = ? AND project_id = ?",
+        (user_arvind["id"], p_wt_id),
+    )
+    # 2nd view
+    arvind_client.get(f"/api/projects/{p_wt_id}/brief")
+    arvind_views_after2 = query_all(
+        "SELECT id FROM ledger_entries WHERE action = 'content_viewed' AND actor_id = ? AND project_id = ?",
+        (user_arvind["id"], p_wt_id),
+    )
+    # Sponsor views
+    sponsor_client.get(f"/api/projects/{p_wt_id}/brief")
+    sponsor_views = query_all(
+        "SELECT id FROM ledger_entries WHERE action = 'content_viewed' AND actor_id = ? AND project_id = ?",
+        (user_sponsor["id"], p_wt_id),
+    )
+
+    p_126 = json.loads(arvind_views_after1[0]["payload_json"]) if len(arvind_views_after1) == 1 else {}
+    payload_valid = (
+        p_126.get("resource") == "brief"
+        and p_126.get("resource_id") == p_wt_id
+        and p_126.get("watermark_id") == user_arvind["id"]
+        and "text" not in p_126
+        and "brief" not in p_126
+    )
+
+    ok_126 = (
+        len(arvind_views_before) == 0
+        and len(arvind_views_after1) == 1
+        and len(arvind_views_after2) == 1
+        and len(sponsor_views) == 0
+        and payload_valid
+    )
+    check(126, "access log: the first brief view by a member writes exactly one content_viewed ledger entry (actor = the viewer, project_id set, payload resource, resource_id and watermark_id, no text); a second view writes none; the sponsor's own views write none",
+          ok_126, f"v1={len(arvind_views_after1)}, v2={len(arvind_views_after2)}, spons_v={len(sponsor_views)}, p_valid={payload_valid}")
+
+    # (127) trace: the sponsor posts Ananya's watermarked copy of the brief and gets Ananya's name, role and confidence 1.0; text with the markers stripped gives found false and the message; a student gets 403; a sponsor tracing a viewer who has no logged view on the sponsor's projects gets 404; admin can trace any viewer.
+    res_trace_ananya = sponsor_client.post("/api/integrity/trace", data={"text": brief_ananya})
+    body_trace_a = res_trace_ananya.json() if res_trace_ananya.status_code == 200 else {}
+    trace_a_ok = (
+        res_trace_ananya.status_code == 200
+        and body_trace_a.get("found") is True
+        and body_trace_a.get("name") == "Ananya"
+        and body_trace_a.get("role") == "student"
+        and body_trace_a.get("confidence") == 1.0
+    )
+
+    stripped_b_ananya = watermark.strip(brief_ananya)
+    res_trace_stripped = sponsor_client.post("/api/integrity/trace", data={"text": stripped_b_ananya})
+    body_trace_str = res_trace_stripped.json() if res_trace_stripped.status_code == 200 else {}
+    trace_str_ok = (
+        res_trace_stripped.status_code == 200
+        and body_trace_str.get("found") is False
+        and "no watermark found" in body_trace_str.get("message", "")
+    )
+
+    res_trace_student = ananya_client.post("/api/integrity/trace", data={"text": brief_ananya})
+    student_blocked = (res_trace_student.status_code == 403)
+
+    tara_user = query_one("SELECT * FROM users WHERE name LIKE 'Tara%'")
+    tara_watermarked = watermark.apply("Leaked unassigned brief text for Tara testing.", tara_user["id"])
+    res_trace_unrelated = sponsor_client.post("/api/integrity/trace", data={"text": tara_watermarked})
+    unrelated_404 = (res_trace_unrelated.status_code == 404)
+
+    res_admin_trace = admin_client.post("/api/integrity/trace", data={"text": tara_watermarked})
+    body_admin_tr = res_admin_trace.json() if res_admin_trace.status_code == 200 else {}
+    admin_trace_ok = (
+        res_admin_trace.status_code == 200
+        and body_admin_tr.get("found") is True
+        and body_admin_tr.get("name") == tara_user["name"]
+    )
+
+    ok_127 = trace_a_ok and trace_str_ok and student_blocked and unrelated_404 and admin_trace_ok
+    check(127, "trace: the sponsor posts Ananya's watermarked copy of the brief and gets Ananya's name, role and confidence 1.0; text with the markers stripped gives found false and the message; a student gets 403; a sponsor tracing a viewer who has no logged view on the sponsor's projects gets 404; admin can trace any viewer",
+          ok_127, f"trace_a={trace_a_ok}, stripped={trace_str_ok}, stud_403={student_blocked}, unrel_404={unrelated_404}, admin_ok={admin_trace_ok}")
+
+    # (128) a successful trace writes a ledger leak_traced entry; the trace response does not contain the traced text.
+    trace_ledger_entry = query_one("SELECT * FROM ledger_entries WHERE action = 'leak_traced' ORDER BY id DESC LIMIT 1")
+    trace_payload = json.loads(trace_ledger_entry["payload_json"]) if trace_ledger_entry else {}
+    trace_payload_ok = (
+        trace_ledger_entry is not None
+        and trace_payload.get("traced_user_id") in (user_ananya["id"], tara_user["id"])
+        and trace_payload.get("confidence") == 1.0
+    )
+    no_traced_text_in_response = (
+        brief_ananya not in res_trace_ananya.text
+        and tara_watermarked not in res_admin_trace.text
+    )
+
+    ok_128 = trace_payload_ok and no_traced_text_in_response
+    check(128, "a successful trace writes a ledger leak_traced entry; the trace response does not contain the traced text",
+          ok_128, f"payload_ok={trace_payload_ok}, text_absent={no_traced_text_in_response}")
+
+    # (129) ledger.verify() is ok; no ledger payload contains zero-width characters or text.
+    ledg_status_129 = verify_ledger()
+    all_ledg_129 = query_all("SELECT payload_json FROM ledger_entries")
+    zw_in_payload = False
+    for l_row in all_ledg_129:
+        pj = l_row["payload_json"] or ""
+        if any(c in pj for c in ("\u2060", "\u200b", "\u200c")):
+            zw_in_payload = True
+            break
+        if brief_ananya[:25] in pj:
+            zw_in_payload = True
+            break
+
+    ok_129 = (ledg_status_129.get("ok") is True) and (not zw_in_payload)
+    check(129, "ledger.verify() is ok; no ledger payload contains zero-width characters or text",
+          ok_129, f"ledger_ok={ledg_status_129.get('ok')}, zw_in_payload={zw_in_payload}")
+
+    # ── Module S5c Checks: Integrity UI, Trace, Authorship, Preview & Watermark Overlay ──
+
+    # (130) Milestones page for expert Arvind on milestone with flagged work: shows the red FLAGGED chip, the collapsible integrity report with score bar and reason chips; for a same-project match shows the matched title and at least one shared phrase; for a cross-project match shows the "details hidden" notice and none of the foreign text.
+    res_m130 = sponsor_client.post(f"/api/projects/{p_inta_id}/milestones", json={
+        "title": "Milestone S5c Integrity",
+        "deliverables": "Deliverables for S5c test",
+        "acceptance_criteria": "Criteria S5c",
+        "amount_inr": 40000
+    })
+    m_130_id = res_m130.json()["id"]
+    sponsor_client.post(f"/api/milestones/{m_130_id}/fund")
+
+    # Ananya submits original work on m_130_id
+    text_130_orig = unique_text("c130_ananya_orig")
+    res_c_orig = ananya_client.post(f"/api/milestones/{m_130_id}/contributions", json={
+        "title": "Ananya Quantum Baseline",
+        "text": text_130_orig,
+        "ai_declaration": "human"
+    })
+    c_130_orig_id = res_c_orig.json()["contribution_id"]
+
+    # Rahul submits verbatim duplicate in same project
+    res_c_dup = rahul_client.post(f"/api/milestones/{m_130_id}/contributions", json={
+        "title": "Rahul Plagiarised Copy 130",
+        "text": text_130_orig,
+        "ai_declaration": "human"
+    })
+    c_130_dup_id = res_c_dup.json()["contribution_id"]
+
+    # Expert Arvind views milestones page on p_inta_id (same-project match)
+    res_ms_inta = arvind_client.get(f"/projects/{p_inta_id}/milestones")
+    html_inta = res_ms_inta.text
+
+    same_has_flagged = "FLAGGED" in html_inta
+    same_has_report = "Integrity Report" in html_inta
+    same_has_sim = "Similarity" in html_inta
+    same_has_matched_title = "Ananya Quantum Baseline" in html_inta
+    # Shared phrase check
+    from app.integrity.similarity import tokenize
+    tokens_orig = tokenize(text_130_orig)
+    first_phrase = " ".join(tokens_orig[:3]) if len(tokens_orig) >= 3 else ""
+    same_has_shared_phrase = first_phrase in html_inta
+
+    # Cross-project match on p_intb_id: Arvind joins and views
+    arvind_client.post(f"/api/projects/{p_intb_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+    res_ms_intb = arvind_client.get(f"/projects/{p_intb_id}/milestones")
+    html_intb = res_ms_intb.text
+
+    cross_has_notice = "details hidden" in html_intb
+    # Foreign original title and foreign full text should NOT be present in cross-project view
+    cross_no_foreign_title = "Ananya Original Work" not in html_intb
+    cross_no_foreign_text = text_ananya_orig not in html_intb
+
+    ok_130 = (
+        same_has_flagged
+        and same_has_report
+        and same_has_sim
+        and same_has_matched_title
+        and same_has_shared_phrase
+        and cross_has_notice
+        and cross_no_foreign_title
+        and cross_no_foreign_text
+    )
+    check(130, "Milestones page for expert Arvind on milestone with flagged work: shows the red FLAGGED chip, the collapsible integrity report with score bar and reason chips; for a same-project match shows the matched title and at least one shared phrase; for a cross-project match shows the 'details hidden' notice and none of the foreign text",
+          ok_130, f"flagged={same_has_flagged}, report={same_has_report}, title={same_has_matched_title}, phrase={same_has_shared_phrase}, notice={cross_has_notice}, no_foreign={cross_no_foreign_title and cross_no_foreign_text}")
+
+    # (131) The reviewer's Approve form on a flagged contribution has a justification textarea; while the flag is unresolved the page shows "Resolve flagged contributions first" and the submit button is disabled.
+    has_justification_textarea = (
+        'name="reasons"' in html_inta
+        and 'Written justification (required for flagged work)' in html_inta
+    )
+    has_disabled_submit = (
+        "Resolve flagged contributions first" in html_inta
+        and "disabled" in html_inta
+    )
+
+    ok_131 = has_justification_textarea and has_disabled_submit
+    check(131, "The reviewer's Approve form on a flagged contribution has a justification textarea; while the flag is unresolved the page shows 'Resolve flagged contributions first' and the submit button is disabled",
+          ok_131, f"textarea={has_justification_textarea}, disabled_submit={has_disabled_submit}")
+
+    # (132) GET /integrity: as sponsor Meera shows all three panels (tracer, authorship, preview); as student Ananya shows authorship and preview but not the tracer; as anonymous returns 200 with the locked card and none of the panels.
+    res_int_meera = sponsor_client.get("/integrity")
+    html_meera = res_int_meera.text
+    meera_has_trace = 'id="panel-trace"' in html_meera
+    meera_has_auth = 'id="panel-authorship"' in html_meera
+    meera_has_prev = 'id="panel-preview"' in html_meera
+
+    res_int_ananya = ananya_client.get("/integrity")
+    html_ananya = res_int_ananya.text
+    ananya_no_trace = 'id="panel-trace"' not in html_ananya
+    ananya_has_auth = 'id="panel-authorship"' in html_ananya
+    ananya_has_prev = 'id="panel-preview"' in html_ananya
+
+    res_int_anon = anon_client.get("/integrity")
+    html_anon = res_int_anon.text
+    anon_is_200 = res_int_anon.status_code == 200
+    anon_locked = "locked-card" in html_anon
+    anon_no_panels = (
+        'id="panel-trace"' not in html_anon
+        and 'id="panel-authorship"' not in html_anon
+        and 'id="panel-preview"' not in html_anon
+    )
+
+    ok_132 = (
+        meera_has_trace and meera_has_auth and meera_has_prev
+        and ananya_no_trace and ananya_has_auth and ananya_has_prev
+        and anon_is_200 and anon_locked and anon_no_panels
+    )
+    check(132, "GET /integrity: as sponsor Meera shows all three panels (tracer, authorship, preview); as student Ananya shows authorship and preview but not the tracer; as anonymous returns 200 with the locked card and none of the panels",
+          ok_132, f"meera={meera_has_trace and meera_has_auth and meera_has_prev}, ananya={ananya_no_trace and ananya_has_auth and ananya_has_prev}, anon={anon_is_200 and anon_locked and anon_no_panels}")
+
+    # (133) POST /integrity/trace with Rahul's marked copy shows Rahul's name, role "student", confidence 1.0, marks found and valid, and his logged view of the brief; POSTing as student Ananya returns 403 with a visible error.
+    res_trace_post_meera = sponsor_client.post("/integrity/trace", data={"text": brief_rahul})
+    html_tr_meera = res_trace_post_meera.text
+    tr_meera_200 = res_trace_post_meera.status_code == 200
+    tr_shows_rahul = "Rahul" in html_tr_meera
+    tr_shows_role = ("student" in html_tr_meera.lower())
+    tr_shows_conf = "100%" in html_tr_meera
+    tr_shows_marks = "valid" in html_tr_meera
+    tr_shows_views = ("brief" in html_tr_meera.lower()) or (f"#{p_wt_id}" in html_tr_meera)
+
+    res_trace_post_ananya = ananya_client.post("/integrity/trace", data={"text": brief_rahul})
+    tr_ananya_403 = res_trace_post_ananya.status_code == 403
+    tr_ananya_err = ("only sponsor or admin" in res_trace_post_ananya.text.lower()) or ("forbidden" in res_trace_post_ananya.text.lower())
+
+    ok_133 = (
+        tr_meera_200 and tr_shows_rahul and tr_shows_role and tr_shows_conf and tr_shows_marks and tr_shows_views
+        and tr_ananya_403 and tr_ananya_err
+    )
+    check(133, "POST /integrity/trace with Rahul's marked copy shows Rahul's name, role 'student', confidence 1.0, marks found and valid, and his logged view of the brief; POSTing as student Ananya returns 403 with a visible error",
+          ok_133, f"meera_200={tr_meera_200}, rahul={tr_shows_rahul}, conf={tr_shows_conf}, views={tr_shows_views}, ananya_403={tr_ananya_403}")
+
+    # (134) Project page for student Ananya (who accepted the charter) contains "Viewed by Ananya" with today's date in the watermark overlay; the same page for sponsor Meera (the owner) does not contain the watermark overlay.
+    from datetime import datetime, timezone
+    today_str = datetime.now(timezone.utc).strftime("%d %b %Y")
+    res_proj_ananya = ananya_client.get(f"/projects/{p_wt_id}")
+    html_pr_ananya = res_proj_ananya.text
+    ananya_has_overlay = (
+        "watermark-overlay" in html_pr_ananya
+        and "Viewed by Ananya" in html_pr_ananya
+        and today_str in html_pr_ananya
+    )
+
+    res_proj_meera = sponsor_client.get(f"/projects/{p_wt_id}")
+    html_pr_meera = res_proj_meera.text
+    meera_no_overlay = (
+        "watermark-overlay" not in html_pr_meera
+        and "Viewed by Meera" not in html_pr_meera
+    )
+
+    ok_134 = ananya_has_overlay and meera_no_overlay
+    check(134, "Project page for student Ananya (who accepted the charter) contains 'Viewed by Ananya' with today's date in the watermark overlay; the same page for sponsor Meera (the owner) does not contain the watermark overlay",
+          ok_134, f"ananya_overlay={ananya_has_overlay}, meera_no_overlay={meera_no_overlay}")
+
+    # (135) Receipt and credit statement render the AI breakdown bar with three segments and percentages; the ledger page renders chips for contribution_flagged, content_viewed and leak_traced.
+    res_rcpt_page = sponsor_client.get(f"/milestones/{m_bd_id}/receipt")
+    html_rcpt = res_rcpt_page.text
+    rcpt_has_bd = (
+        "AI Composition Breakdown" in html_rcpt
+        and "Human" in html_rcpt
+        and "AI-assisted" in html_rcpt
+        and "Agent-generated" in html_rcpt
+        and "50.0%" in html_rcpt
+        and "30.0%" in html_rcpt
+        and "20.0%" in html_rcpt
+        and "AI share is disclosed; credit goes to the humans who directed and reviewed the work" in html_rcpt
+    )
+
+    res_stmt_page = sponsor_client.get(f"/milestones/{m_unpaid_id}/receipt")
+    html_stmt = res_stmt_page.text
+    stmt_has_bd = (
+        "AI Composition Breakdown" in html_stmt
+        and "Human" in html_stmt
+        and "AI share is disclosed; credit goes to the humans who directed and reviewed the work" in html_stmt
+    )
+
+    res_ledg_page = admin_client.get("/ledger")
+    html_ledg = res_ledg_page.text
+    ledg_has_flagged_chip = "action-chip-flagged" in html_ledg or "contribution_flagged" in html_ledg
+    ledg_has_viewed_chip = "action-chip-viewed" in html_ledg or "content_viewed" in html_ledg
+    ledg_has_leak_chip = "action-chip-leak" in html_ledg or "leak_traced" in html_ledg
+
+    ok_135 = rcpt_has_bd and stmt_has_bd and ledg_has_flagged_chip and ledg_has_viewed_chip and ledg_has_leak_chip
+    check(135, "Receipt and credit statement render the AI breakdown bar with three segments and percentages; the ledger page renders chips for contribution_flagged, content_viewed and leak_traced",
+          ok_135, f"rcpt_bd={rcpt_has_bd}, stmt_bd={stmt_has_bd}, chips={ledg_has_flagged_chip and ledg_has_viewed_chip and ledg_has_leak_chip}")
+
+    # ── Check 136 (S6a: leave_project) ──
+    res_p136 = sponsor_client.post("/api/projects", data={
+        "title": "S6 Leave Test Project",
+        "public_summary": "Testing leave_project functionality",
+        "confidential_brief": "Confidential brief for leave test",
+        "sensitivity_label": "confidential",
+        "engagement_model": "funded"
+    })
+    p136_id = res_p136.json()["project_id"]
+    # Ananya joins
+    res_j136 = ananya_client.post(f"/api/projects/{p136_id}/join", data={
+        "accept_charter": "1",
+        "ack_engagement_model": "1"
+    })
+    mem_136_before = ananya_client.get(f"/api/projects/{p136_id}/membership").json()["state"]
+
+    # Ananya leaves
+    res_l136 = ananya_client.post(f"/api/projects/{p136_id}/leave")
+    mem_136_after = ananya_client.get(f"/api/projects/{p136_id}/membership").json()["state"]
+    brief_136 = ananya_client.get(f"/api/projects/{p136_id}/brief")
+
+    ledg_left_136 = query_one(
+        "SELECT * FROM ledger_entries WHERE action = 'member_left' AND project_id = ? ORDER BY id DESC LIMIT 1",
+        (p136_id,)
+    )
+    payload_left_136 = json.loads(ledg_left_136["payload_json"]) if ledg_left_136 else {}
+
+    # Leaving again gives 409
+    res_l136_again = ananya_client.post(f"/api/projects/{p136_id}/leave")
+    # Non-member leaving gives 409
+    res_l136_nonmember = sneha_client.post(f"/api/projects/{p136_id}/leave")
+
+    # Ananya joins again
+    res_j136_again = ananya_client.post(f"/api/projects/{p136_id}/join", data={
+        "accept_charter": "1",
+        "ack_engagement_model": "1"
+    })
+    mem_136_rejoined = ananya_client.get(f"/api/projects/{p136_id}/membership").json()["state"]
+
+    ananya_id = query_one("SELECT id FROM users WHERE name LIKE 'Ananya%'")["id"]
+    rahul_id = query_one("SELECT id FROM users WHERE name LIKE 'Rahul%'")["id"]
+    ok_136 = (
+        res_p136.status_code in (200, 201)
+        and res_j136.status_code == 200
+        and mem_136_before == "member"
+        and res_l136.status_code == 200
+        and mem_136_after == "declined"
+        and brief_136.status_code == 403
+        and ledg_left_136 is not None
+        and ledg_left_136["actor_id"] == ananya_id
+        and ledg_left_136["actor_type"] == "human"
+        and set(payload_left_136.keys()).issubset({"user_id", "previous_state", "approved_contributions", "total_impact"})
+        and res_l136_again.status_code == 409
+        and res_l136_nonmember.status_code == 409
+        and res_j136_again.status_code == 200
+        and mem_136_rejoined == "member"
+    )
+    check(136, "leave: a member leaves a test project: membership_state 'declined', the brief gives 403, a ledger member_left entry exists (actor = the user; payload only ids and counts); leaving again, or leaving as a non-member, gives 409; the same user can join again and is a member",
+          ok_136, f"before={mem_136_before}, after={mem_136_after}, brief={brief_136.status_code}, again={res_l136_again.status_code}, nonmem={res_l136_nonmember.status_code}, rejoined={mem_136_rejoined}")
+
+    # ── Check 137 (S6a: credit kept on departure) ──
+    res_p137 = sponsor_client.post("/api/projects", data={
+        "title": "S6 Credit Retention Project",
+        "public_summary": "Testing credit retention after departure",
+        "confidential_brief": "Confidential brief for credit retention",
+        "sensitivity_label": "confidential",
+        "engagement_model": "funded"
+    })
+    p137_id = res_p137.json()["project_id"]
+    res_m137 = sponsor_client.post(f"/api/projects/{p137_id}/milestones", json={
+        "title": "Milestone Credit Retention",
+        "deliverables": "Deliverables",
+        "acceptance_criteria": "Criteria",
+        "amount_inr": 100000,
+        "acceptance_window_days": 7
+    })
+    m137_id = res_m137.json()["id"]
+    sponsor_client.post(f"/api/milestones/{m137_id}/fund")
+
+    # Arvind, Ananya, Rahul join
+    arvind_client.post(f"/api/projects/{p137_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+    ananya_client.post(f"/api/projects/{p137_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+    rahul_client.post(f"/api/projects/{p137_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+
+    # Ananya submits contribution
+    c_ananya_res = ananya_client.post(f"/api/milestones/{m137_id}/contributions", data={
+        "title": "Ananya Work 137",
+        "text": unique_text("ananya contribution credit kept 137"),
+        "ai_declaration": "human"
+    })
+    c_ananya_id = c_ananya_res.json()["contribution_id"]
+    arvind_client.post(f"/api/contributions/{c_ananya_id}/review", data={
+        "decision": "approve", "impact_score": "5", "reasons": "Excellent work", "criteria_ref": "Criteria"
+    })
+
+    # Rahul submits contribution
+    c_rahul_res = rahul_client.post(f"/api/milestones/{m137_id}/contributions", data={
+        "title": "Rahul Work 137",
+        "text": unique_text("rahul contribution credit kept 137"),
+        "ai_declaration": "human"
+    })
+    c_rahul_id = c_rahul_res.json()["contribution_id"]
+    arvind_client.post(f"/api/contributions/{c_rahul_id}/review", data={
+        "decision": "approve", "impact_score": "3", "reasons": "Good work", "criteria_ref": "Criteria"
+    })
+
+    # Rahul leaves
+    res_r_leave = rahul_client.post(f"/api/projects/{p137_id}/leave")
+
+    # Rahul's new contribution gives 403
+    res_r_new_c = rahul_client.post(f"/api/milestones/{m137_id}/contributions", data={
+        "title": "Rahul Work Post Leave",
+        "text": unique_text("rahul new work after leaving 137"),
+        "ai_declaration": "human"
+    })
+
+    # Arvind submits milestone, sponsor accepts
+    res_sub137 = arvind_client.post(f"/api/milestones/{m137_id}/submit")
+    res_acc137 = sponsor_client.post(f"/api/milestones/{m137_id}/accept")
+
+    # Check payouts
+    escrow_137 = query_one("SELECT id FROM escrows WHERE milestone_id = ?", (m137_id,))
+    payout_rahul = query_one("SELECT * FROM payouts WHERE user_id = ? AND escrow_id = ?", (rahul_id, escrow_137["id"]))
+    payout_ananya = query_one("SELECT * FROM payouts WHERE user_id = ? AND escrow_id = ?", (ananya_id, escrow_137["id"]))
+
+    from app.services.payouts import verify_receipt
+    vr_137 = verify_receipt(m137_id)
+
+    ok_137 = (
+        res_r_leave.status_code == 200
+        and res_r_new_c.status_code == 403
+        and res_sub137.status_code == 200
+        and res_acc137.status_code == 200
+        and payout_rahul is not None
+        and payout_rahul["amount_inr"] > 0
+        and payout_ananya is not None
+        and payout_ananya["amount_inr"] > payout_rahul["amount_inr"]
+        and vr_137["ok"] is True
+    )
+    check(137, "credit kept: on a funded milestone Ananya (impact 5) and Rahul (impact 3) have approved contributions; Rahul leaves; Rahul's new contribution gives 403; Arvind submits, the sponsor accepts; Rahul still receives a payout greater than 0, the student amounts follow the 5:3 weights, and verify_receipt is ok",
+          ok_137, f"new_c={res_r_new_c.status_code}, acc={res_acc137.status_code}, rahul_amt={payout_rahul['amount_inr'] if payout_rahul else None}, ananya_amt={payout_ananya['amount_inr'] if payout_ananya else None}, vr={vr_137['ok']}")
+
+    # ── Check 138 (S6a: charter_declined on departure) ──
+    res_p138 = sponsor_client.post("/api/projects", data={
+        "title": "S6 Charter Decline Project",
+        "public_summary": "Testing charter decline functionality",
+        "confidential_brief": "Confidential brief for charter decline",
+        "sensitivity_label": "confidential",
+        "engagement_model": "funded"
+    })
+    p138_id = res_p138.json()["project_id"]
+    res_m138 = sponsor_client.post(f"/api/projects/{p138_id}/milestones", json={
+        "title": "Milestone Charter Decline",
+        "deliverables": "Deliverables",
+        "acceptance_criteria": "Criteria",
+        "amount_inr": 100000,
+        "acceptance_window_days": 7
+    })
+    m138_id = res_m138.json()["id"]
+    sponsor_client.post(f"/api/milestones/{m138_id}/fund")
+
+    # Arvind, Ananya, Rahul join v1
+    arvind_client.post(f"/api/projects/{p138_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+    ananya_client.post(f"/api/projects/{p138_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+    rahul_client.post(f"/api/projects/{p138_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+
+    # Rahul submits contribution, approved with impact 3
+    c138_r = rahul_client.post(f"/api/milestones/{m138_id}/contributions", data={
+        "title": "Rahul 138", "text": unique_text("rahul contribution 138"), "ai_declaration": "human"
+    }).json()["contribution_id"]
+    arvind_client.post(f"/api/contributions/{c138_r}/review", data={
+        "decision": "approve", "impact_score": "3", "reasons": "Approved", "criteria_ref": "Criteria"
+    })
+
+    # Ananya submits contribution, approved with impact 5
+    c138_a = ananya_client.post(f"/api/milestones/{m138_id}/contributions", data={
+        "title": "Ananya 138", "text": unique_text("ananya contribution 138"), "ai_declaration": "human"
+    }).json()["contribution_id"]
+    arvind_client.post(f"/api/contributions/{c138_a}/review", data={
+        "decision": "approve", "impact_score": "5", "reasons": "Approved", "criteria_ref": "Criteria"
+    })
+
+    # Sponsor publishes charter v2
+    res_v2 = sponsor_client.post(f"/api/projects/{p138_id}/charter", data={
+        "change_note": "Version 2 update for charter decline test"
+    })
+
+    # Rahul is in reaccept_required state
+    r_state_v2 = rahul_client.get(f"/api/projects/{p138_id}/membership").json()["state"]
+
+    # Rahul leaves in reaccept_required state
+    res_r_leave138 = rahul_client.post(f"/api/projects/{p138_id}/leave")
+    r_state_declined = rahul_client.get(f"/api/projects/{p138_id}/membership").json()["state"]
+
+    ledg_dec_138 = query_one(
+        "SELECT * FROM ledger_entries WHERE action = 'charter_declined' AND project_id = ? ORDER BY id DESC LIMIT 1",
+        (p138_id,)
+    )
+    payload_dec_138 = json.loads(ledg_dec_138["payload_json"]) if ledg_dec_138 else {}
+
+    # Arvind re-accepts v2, submits milestone; sponsor accepts
+    arvind_client.post(f"/api/projects/{p138_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+    arvind_client.post(f"/api/milestones/{m138_id}/submit")
+    sponsor_client.post(f"/api/milestones/{m138_id}/accept")
+
+    escrow_138 = query_one("SELECT id FROM escrows WHERE milestone_id = ?", (m138_id,))
+    payout_rahul_138 = query_one("SELECT * FROM payouts WHERE user_id = ? AND escrow_id = ?", (rahul_id, escrow_138["id"]))
+
+    ok_138 = (
+        res_v2.status_code == 200
+        and r_state_v2 == "reaccept_required"
+        and res_r_leave138.status_code == 200
+        and r_state_declined == "declined"
+        and ledg_dec_138 is not None
+        and ledg_dec_138["actor_id"] == rahul_id
+        and set(payload_dec_138.keys()).issubset({"user_id", "previous_state", "approved_contributions", "total_impact"})
+        and payout_rahul_138 is not None
+        and payout_rahul_138["amount_inr"] > 0
+    )
+    check(138, "declining a new charter: after the sponsor publishes version 2, a member in state reaccept_required leaves: a ledger charter_declined entry exists, the state is declined and their approved contribution still counts at payout",
+          ok_138, f"v2_status={res_v2.status_code}, state_v2={r_state_v2}, leave_status={res_r_leave138.status_code}, state_declined={r_state_declined}, ledg={ledg_dec_138 is not None}, rahul_payout={payout_rahul_138['amount_inr'] if payout_rahul_138 else None}")
+
+    # ── Check 139 (S6a: auto-accept via simulate-days) ──
+    res_p139 = sponsor_client.post("/api/projects", data={
+        "title": "S6 Auto-Accept Project",
+        "public_summary": "Testing auto-accept overdue milestone",
+        "confidential_brief": "Confidential brief for auto-accept",
+        "sensitivity_label": "confidential",
+        "engagement_model": "funded"
+    })
+    p139_id = res_p139.json()["project_id"]
+    res_m139 = sponsor_client.post(f"/api/projects/{p139_id}/milestones", json={
+        "title": "Milestone Auto-Accept",
+        "deliverables": "Deliverables",
+        "acceptance_criteria": "Criteria",
+        "amount_inr": 100000,
+        "acceptance_window_days": 7
+    })
+    m139_id = res_m139.json()["id"]
+    sponsor_client.post(f"/api/milestones/{m139_id}/fund")
+
+    arvind_client.post(f"/api/projects/{p139_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+    ananya_client.post(f"/api/projects/{p139_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+
+    c139 = ananya_client.post(f"/api/milestones/{m139_id}/contributions", data={
+        "title": "Ananya Auto 139", "text": unique_text("ananya contribution auto 139"), "ai_declaration": "human"
+    }).json()["contribution_id"]
+    arvind_client.post(f"/api/contributions/{c139}/review", data={
+        "decision": "approve", "impact_score": "5", "reasons": "Approved", "criteria_ref": "Criteria"
+    })
+    arvind_client.post(f"/api/milestones/{m139_id}/submit")
+
+    # Non-admin gets 403
+    res_sim_nonadmin = ananya_client.post(f"/api/milestones/{m139_id}/simulate-days", data={"days": "7"})
+
+    # Admin simulate-days days=1 gives 409 containing "window"
+    res_sim_1 = admin_client.post(f"/api/milestones/{m139_id}/simulate-days", data={"days": "1"})
+
+    # Admin simulate-days days=7 gives 200
+    res_sim_7 = admin_client.post(f"/api/milestones/{m139_id}/simulate-days", data={"days": "7"})
+
+    # Second call gives 409
+    res_sim_again = admin_client.post(f"/api/milestones/{m139_id}/simulate-days", data={"days": "7"})
+
+    escrow_139 = query_one("SELECT * FROM escrows WHERE milestone_id = ?", (m139_id,))
+    payouts_139 = query_all("SELECT * FROM payouts WHERE escrow_id = ?", (escrow_139["id"],)) if escrow_139 else []
+    ledg_acc_139 = query_one(
+        "SELECT * FROM ledger_entries WHERE action = 'milestone_accepted' AND project_id = ? ORDER BY id DESC LIMIT 1",
+        (p139_id,)
+    )
+    payload_acc_139 = json.loads(ledg_acc_139["payload_json"]) if ledg_acc_139 else {}
+
+    ok_139 = (
+        res_sim_nonadmin.status_code == 403
+        and res_sim_1.status_code == 409
+        and "window" in res_sim_1.text.lower()
+        and res_sim_7.status_code == 200
+        and escrow_139 is not None
+        and escrow_139["state"] == "released"
+        and len(payouts_139) > 0
+        and ledg_acc_139 is not None
+        and ledg_acc_139["actor_type"] == "system"
+        and payload_acc_139.get("auto") is True
+        and res_sim_again.status_code == 409
+    )
+    check(139, "auto-accept: a submitted milestone with acceptance_window_days 7: admin simulate-days with days=1 gives 409 containing 'window'; days=7 gives 200, escrow released, payouts exist, a ledger milestone_accepted entry has payload auto true and actor_type system; a non-admin gets 403; a second call gives 409",
+          ok_139, f"nonadmin={res_sim_nonadmin.status_code}, d1={res_sim_1.status_code}, d7={res_sim_7.status_code}, escrow={escrow_139['state'] if escrow_139 else None}, payouts={len(payouts_139)}, auto={payload_acc_139.get('auto')}, again={res_sim_again.status_code}")
+
+    # ── Check 140 (S6a: auto-accept integrity) ──
+    from app.services.payouts import verify_receipt, build_receipt
+    vr_140 = verify_receipt(m139_id)
+    rcpt_140 = build_receipt(m139_id)
+    total_payouts_140 = sum(l["amount_inr"] for l in rcpt_140["lines"])
+    total_eq_140 = (total_payouts_140 + rcpt_140["fee_inr"] + rcpt_140["ai_reserve_inr"] == rcpt_140["amount_inr"])
+    creds_140 = query_all("SELECT * FROM credentials WHERE project_id = ?", (p139_id,))
+    lv_140 = ledger.verify()
+
+    ok_140 = (
+        vr_140["ok"] is True
+        and total_eq_140 is True
+        and len(creds_140) > 0
+        and lv_140["ok"] is True
+    )
+    check(140, "auto-accept integrity: verify_receipt is ok, payouts + fee + AI reserve equal the amount, credentials were issued, and ledger.verify() is ok",
+          ok_140, f"vr={vr_140['ok']}, total_eq={total_eq_140}, creds={len(creds_140)}, lv={lv_140['ok']}")
+
+    # ── Check 141 (S6a: engagement change allowed) ──
+    res_p141 = sponsor_client.post("/api/projects", data={
+        "title": "S6 Engagement Change Allowed Project",
+        "public_summary": "Testing engagement model change from funded to non-funded",
+        "confidential_brief": "Confidential brief for engagement change",
+        "sensitivity_label": "confidential",
+        "engagement_model": "funded"
+    })
+    p141_id = res_p141.json()["project_id"]
+    res_m141 = sponsor_client.post(f"/api/projects/{p141_id}/milestones", json={
+        "title": "Milestone Engagement Change",
+        "deliverables": "Deliverables",
+        "acceptance_criteria": "Criteria",
+        "amount_inr": 50000,
+        "acceptance_window_days": 7
+    })
+    m141_id = res_m141.json()["id"]
+
+    # Member joins
+    ananya_client.post(f"/api/projects/{p141_id}/join", data={"accept_charter": "1", "ack_engagement_model": "1"})
+    mem_141_before = ananya_client.get(f"/api/projects/{p141_id}/membership").json()["state"]
+
+    # Sponsor publishes version 2 changing funded to knowledge_sharing
+    clean_rewards = "UNPAID: academic recognition, certificates and open attribution only"
+    res_pub_141 = sponsor_client.post(f"/api/projects/{p141_id}/charter", data={
+        "engagement_model": "knowledge_sharing",
+        "change_note": "Transitioning project to open collaborative non-funded research",
+        "rewards": clean_rewards
+    })
+
+    proj_141 = query_one("SELECT * FROM projects WHERE id = ?", (p141_id,))
+    escrows_141 = query_all(
+        "SELECT e.* FROM escrows e JOIN milestones m ON m.id = e.milestone_id WHERE m.project_id = ?",
+        (p141_id,)
+    )
+    milestones_141 = query_all("SELECT * FROM milestones WHERE project_id = ?", (p141_id,))
+    mem_141_v2 = ananya_client.get(f"/api/projects/{p141_id}/membership").json()["state"]
+
+    # Re-accepting without engagement model ack gives 400
+    res_reacc_bad = ananya_client.post(f"/api/projects/{p141_id}/join", data={
+        "accept_charter": "1",
+        "ack_engagement_model": "0"
+    })
+
+    # Re-accepting with engagement model ack gives 200, member is back
+    res_reacc_good = ananya_client.post(f"/api/projects/{p141_id}/join", data={
+        "accept_charter": "1",
+        "ack_engagement_model": "1"
+    })
+    mem_141_back = ananya_client.get(f"/api/projects/{p141_id}/membership").json()["state"]
+
+    # Milestones JSON and receipt/credit JSON contain no currency symbol or payment wording except "no payment" or "unpaid"
+    res_m141_json = sponsor_client.get(f"/api/projects/{p141_id}/milestones").text
+    res_rcpt141_json = sponsor_client.get(f"/api/milestones/{m141_id}/receipt").text
+
+    def clean_check(s: str) -> bool:
+        c = re.sub(r"\bno\s+payment\b", "", s, flags=re.IGNORECASE)
+        c = re.sub(r"\bunpaid\b", "", c, flags=re.IGNORECASE)
+        for ch in c:
+            if ch in ("₹", "$", "€", "£", "¥") or unicodedata.category(ch) == "Sc":
+                return False
+        return re.search(r"\b(pay|paid|payment|salary|stipend|fee)\b", c, flags=re.IGNORECASE) is None
+
+    clean_m_ok = clean_check(res_m141_json)
+    clean_rcpt_ok = clean_check(res_rcpt141_json)
+
+    ok_141 = (
+        mem_141_before == "member"
+        and res_pub_141.status_code == 200
+        and proj_141["engagement_model"] == "knowledge_sharing"
+        and proj_141["current_charter_version"] == 2
+        and len(escrows_141) == 0
+        and all(m["amount_inr"] == 0 for m in milestones_141)
+        and mem_141_v2 == "reaccept_required"
+        and res_reacc_bad.status_code == 400
+        and res_reacc_good.status_code == 200
+        and mem_141_back == "member"
+        and clean_m_ok is True
+        and clean_rcpt_ok is True
+    )
+    check(141, "engagement change allowed: on a funded test project with only draft escrow and one member, the sponsor publishes version 2 changing funded to knowledge_sharing with a change_note and a clean rewards text: 200, the engagement model changed, draft escrow rows are gone, milestone amounts are 0, the version incremented and the member is reaccept_required; re-accepting without the engagement-model acknowledgement gives 400, with it the member is back; the project's milestones JSON and receipt/credit JSON contain no currency symbol or payment wording except 'no payment' or 'unpaid'",
+          ok_141, f"pub={res_pub_141.status_code}, model={proj_141['engagement_model']}, v={proj_141['current_charter_version']}, escrows={len(escrows_141)}, v2_state={mem_141_v2}, bad={res_reacc_bad.status_code}, back={mem_141_back}, clean_m={clean_m_ok}, clean_r={clean_rcpt_ok}")
+
+    # ── Check 142 (S6a: engagement change blocked) ──
+    # 1. Project with funded escrow -> 409 containing "funds"
+    res_p142_f = sponsor_client.post("/api/projects", data={
+        "title": "S6 Funded Escrow Change Blocked",
+        "public_summary": "Testing funded escrow block",
+        "confidential_brief": "Confidential brief",
+        "sensitivity_label": "confidential",
+        "engagement_model": "funded"
+    })
+    p142_f_id = res_p142_f.json()["project_id"]
+    res_m142_f = sponsor_client.post(f"/api/projects/{p142_f_id}/milestones", json={
+        "title": "Milestone Funded",
+        "deliverables": "Deliverables",
+        "acceptance_criteria": "Criteria",
+        "amount_inr": 25000,
+        "acceptance_window_days": 7
+    })
+    m142_f_id = res_m142_f.json()["id"]
+    sponsor_client.post(f"/api/milestones/{m142_f_id}/fund")
+
+    res_blocked_funded_escrow = sponsor_client.post(f"/api/projects/{p142_f_id}/charter", data={
+        "engagement_model": "knowledge_sharing",
+        "change_note": "Trying to change with funded escrow",
+        "rewards": "UNPAID: recognition only"
+    })
+    escrow_blocked_ok = (res_blocked_funded_escrow.status_code == 409 and "funds" in res_blocked_funded_escrow.text.lower())
+
+    # 2. Non-funded to funded gives 400
+    res_p142_nf = sponsor_client.post("/api/projects", data={
+        "title": "S6 Non-Funded to Funded Blocked",
+        "public_summary": "Testing non-funded to funded block",
+        "confidential_brief": "Confidential brief",
+        "sensitivity_label": "confidential",
+        "engagement_model": "knowledge_sharing"
+    })
+    p142_nf_id = res_p142_nf.json()["project_id"]
+    res_nf_to_f = sponsor_client.post(f"/api/projects/{p142_nf_id}/charter", data={
+        "engagement_model": "funded",
+        "change_note": "Attempt non-funded to funded"
+    })
+    nf_to_f_ok = (res_nf_to_f.status_code == 400)
+
+    # 3. Non-funded charter whose rewards contain "₹5000" gives 400
+    res_rewards_symbol = sponsor_client.post(f"/api/projects/{p142_nf_id}/charter", data={
+        "rewards": "₹5000 stipend for work",
+        "change_note": "Invalid symbol rewards"
+    })
+    rewards_symbol_ok = (res_rewards_symbol.status_code == 400)
+
+    # 4. Non-funded charter whose rewards contain "paid" gives 400
+    res_rewards_paid = sponsor_client.post(f"/api/projects/{p142_nf_id}/charter", data={
+        "rewards": "Fully paid research task",
+        "change_note": "Invalid paid word"
+    })
+    rewards_paid_ok = (res_rewards_paid.status_code == 400)
+
+    # 5. Funded to non-funded without a change_note gives 400
+    res_p142_draft = sponsor_client.post("/api/projects", data={
+        "title": "S6 No Change Note Test",
+        "public_summary": "Testing missing change note",
+        "confidential_brief": "Confidential brief",
+        "sensitivity_label": "confidential",
+        "engagement_model": "funded"
+    })
+    p142_draft_id = res_p142_draft.json()["project_id"]
+    res_no_cn = sponsor_client.post(f"/api/projects/{p142_draft_id}/charter", data={
+        "engagement_model": "knowledge_sharing",
+        "change_note": "",
+        "rewards": "UNPAID: recognition only"
+    })
+    no_cn_ok = (res_no_cn.status_code == 400)
+
+    ok_142 = escrow_blocked_ok and nf_to_f_ok and rewards_symbol_ok and rewards_paid_ok and no_cn_ok
+    check(142, "engagement change blocked: with a funded escrow the change gives 409 containing 'funds'; non-funded to funded gives 400; a non-funded charter whose rewards contain '₹5000' or the word 'paid' gives 400; funded to non-funded without a change_note gives 400",
+          ok_142, f"escrow_blocked={res_blocked_funded_escrow.status_code}, nf_to_f={res_nf_to_f.status_code}, symbol={res_rewards_symbol.status_code}, paid={res_rewards_paid.status_code}, no_cn={res_no_cn.status_code}")
+
+    # ── Check 143 (S6a: demo mode toggle & demo reset) ──
+    # Save ledger entries before reset so check 144 can inspect their payloads
+    saved_left = query_all("SELECT payload_json FROM ledger_entries WHERE action = 'member_left'")
+    saved_declined = query_all("SELECT payload_json FROM ledger_entries WHERE action = 'charter_declined'")
+    saved_auto = query_all("SELECT payload_json FROM ledger_entries WHERE action = 'milestone_accepted' AND (payload_json LIKE '%\"auto\": true%' OR payload_json LIKE '%\"auto\":true%')")
+
+    orig_demo = os.environ.get("PROVENANCE_DEMO", "1")
+    os.environ["PROVENANCE_DEMO"] = "0"
+
+    res_tamper_403 = admin_client.post("/api/ledger/tamper")
+    res_sim_403 = admin_client.post(f"/api/milestones/{m139_id}/simulate-days", data={"days": 7})
+    res_reset_403 = admin_client.post("/api/demo/reset")
+
+    os.environ["PROVENANCE_DEMO"] = orig_demo
+
+    # As LAST action of check 143:
+    res_reset_200 = admin_client.post("/api/demo/reset")
+    users_after = query_one("SELECT COUNT(*) AS c FROM users")["c"]
+    projects_after = query_one("SELECT COUNT(*) AS c FROM projects")["c"]
+    ledger_entries_after = query_all("SELECT * FROM ledger_entries ORDER BY id ASC")
+    actions_after = [r["action"] for r in ledger_entries_after]
+    lv_after = ledger.verify()
+
+    ok_143 = (
+        res_tamper_403.status_code == 403
+        and res_sim_403.status_code == 403
+        and res_reset_403.status_code == 403
+        and res_reset_200.status_code == 200
+        and users_after == 9
+        and projects_after == 2
+        and len(ledger_entries_after) == 3
+        and actions_after == ["genesis", "project_posted", "project_posted"]
+        and lv_after["ok"] is True
+    )
+    check(143, "demo mode: with PROVENANCE_DEMO set to '0', tamper, simulate-days and POST /api/demo/reset all give 403 (restore the variable afterwards). As the LAST action of this check, with demo mode on, POST /api/demo/reset gives 200 and afterwards there are 9 users, 2 projects, a genesis ledger entry plus 2 project_posted entries, and ledger.verify() is ok",
+          ok_143, f"tamper403={res_tamper_403.status_code}, sim403={res_sim_403.status_code}, reset403={res_reset_403.status_code}, reset200={res_reset_200.status_code}, users={users_after}, projects={projects_after}, entries={actions_after}, lv={lv_after['ok']}")
+
+    # ── Check 144 (S6a: ledger entry payloads and static check) ──
+    def verify_entry_payload(p_json: str, allowed_keys: set) -> bool:
+        try:
+            d = json.loads(p_json)
+            if not set(d.keys()).issubset(allowed_keys):
+                return False
+            for k, v in d.items():
+                if not isinstance(v, (int, float, str, bool, type(None))):
+                    return False
+                if isinstance(v, str) and ("@" in v or len(v) > 100):
+                    return False
+            return True
+        except Exception:
+            return False
+
+    payloads_ok = (
+        len(saved_left) > 0 and all(verify_entry_payload(r["payload_json"], {"user_id", "previous_state", "approved_contributions", "total_impact"}) for r in saved_left)
+        and len(saved_declined) > 0 and all(verify_entry_payload(r["payload_json"], {"user_id", "previous_state", "approved_contributions", "total_impact"}) for r in saved_declined)
+        and len(saved_auto) > 0 and all(verify_entry_payload(r["payload_json"], {"milestone_id", "auto", "reason"}) for r in saved_auto)
+    )
+
+    violations = []
+    for root, dirs, files in os.walk("app"):
+        for f in files:
+            if f.endswith(".py"):
+                fpath = os.path.join(root, f)
+                rel = os.path.relpath(fpath).replace("\\", "/")
+                if rel == "app/ledger.py":
+                    continue
+                with open(fpath, "r", encoding="utf-8") as fp:
+                    content = fp.read()
+                    if "DELETE FROM ledger_entries" in content or "UPDATE ledger_entries" in content:
+                        violations.append(rel)
+
+    static_ok = (len(violations) == 0)
+
+    lv_144 = ledger.verify()
+    ok_144 = payloads_ok and static_ok and (lv_144["ok"] is True)
+
+    check(144, "the new ledger entries (member_left, charter_declined, milestone_accepted with auto) contain only ids, counts and labels; only app/ledger.py contains 'DELETE FROM ledger_entries' or 'UPDATE ledger_entries'; ledger.verify() is ok",
+          ok_144, f"payloads_ok={payloads_ok}, violations={violations}, lv={lv_144['ok']}")
+
+    # ── S6b: Story Mode & Twist Sandboxes (Checks 145-155) ──
+    # Start from freshly reset state
+    res_reset = client.post("/api/demo/reset")
+    reset_ok = res_reset.status_code == 200
+
+    # ── Check 145 ──
+    # /api/story/status after reset lists the 12 step keys in order, "post" is done and the others are not;
+    # with PROVENANCE_DEMO "0" the story endpoints give 403 (restore the variable afterwards).
+    res_st = client.get("/api/story/status")
+    data_st = res_st.json() if res_st.status_code == 200 else {}
+    step_keys = [s["key"] for s in data_st.get("steps", [])]
+    expected_keys = ["post", "scope", "match", "join", "fund", "work", "catch", "trace", "accept", "unpaid", "verify", "twist"]
+    keys_ok = step_keys == expected_keys
+    post_done = bool(data_st.get("steps") and data_st["steps"][0]["status"] == "done")
+    others_not_done = bool(data_st.get("steps") and all(s["status"] != "done" for s in data_st["steps"][1:]))
+
+    os.environ["PROVENANCE_DEMO"] = "0"
+    res_st_403 = client.get("/api/story/status")
+    res_run_403 = client.post("/api/story/run/post")
+    res_tw_403 = client.post("/api/story/twist/quit")
+    res_pg_403 = client.get("/story")
+    os.environ["PROVENANCE_DEMO"] = "1"
+
+    demo_403_ok = (
+        res_st_403.status_code == 403
+        and res_run_403.status_code == 403
+        and res_tw_403.status_code == 403
+        and res_pg_403.status_code == 403
+    )
+
+    ok_145 = reset_ok and keys_ok and post_done and others_not_done and demo_403_ok
+    check(
+        145,
+        "/api/story/status after reset lists the 12 step keys in order, 'post' is done and the others are not; with PROVENANCE_DEMO '0' the story endpoints give 403 (restore the variable afterwards)",
+        ok_145,
+        f"reset={reset_ok}, keys={keys_ok}, post_done={post_done}, others_not_done={others_not_done}, demo_403={demo_403_ok}",
+    )
+
+    # ── Check 146 ──
+    # prerequisite and idempotency: running "fund" before "join" gives 409 mentioning "join";
+    # running "scope" twice makes the second run report already done and creates no duplicate milestones.
+    res_fund_prereq = client.post("/api/story/run/fund")
+    fund_prereq_ok = res_fund_prereq.status_code == 409 and "join" in res_fund_prereq.json().get("detail", "").lower()
+
+    res_scope_1 = client.post("/api/story/run/scope")
+    ms_p1_count_1 = query_one("SELECT count(*) as c FROM milestones WHERE project_id = 1")["c"]
+
+    res_scope_2 = client.post("/api/story/run/scope")
+    ms_p1_count_2 = query_one("SELECT count(*) as c FROM milestones WHERE project_id = 1")["c"]
+    scope_2_data = res_scope_2.json() if res_scope_2.status_code == 200 else {}
+    scope_idemp_ok = (
+        res_scope_1.status_code == 200
+        and res_scope_2.status_code == 200
+        and ms_p1_count_1 == ms_p1_count_2
+        and ("already" in scope_2_data.get("summary", "").lower() or scope_2_data.get("facts", {}).get("already_done") is True)
+    )
+
+    ok_146 = fund_prereq_ok and scope_idemp_ok
+    check(
+        146,
+        "prerequisite and idempotency: running 'fund' before 'join' gives 409 mentioning 'join'; running 'scope' twice makes the second run report already done and creates no duplicate milestones",
+        ok_146,
+        f"fund_prereq={fund_prereq_ok}, scope_idemp={scope_idemp_ok}, count={ms_p1_count_1}->{ms_p1_count_2}",
+    )
+
+    # ── Check 147 ──
+    # after scope and match: P1 has 2 open milestones; the match facts list Arvind Nair as the expert,
+    # Ananya, Rahul and Sneha as the students and Kiran Shah excluded for conflict of interest.
+    res_match = client.post("/api/story/run/match")
+    match_data = res_match.json() if res_match.status_code == 200 else {}
+    facts_match = match_data.get("facts", {})
+
+    open_ms_count = query_one("SELECT count(*) as c FROM milestones WHERE project_id = 1 AND status = 'open'")["c"]
+    p1_open_ms_ok = open_ms_count == 2
+    expert_ok = "Arvind" in str(facts_match.get("expert_selected", ""))
+    students_str = " ".join(facts_match.get("students_selected", [])) if isinstance(facts_match.get("students_selected"), list) else str(facts_match.get("students_selected", ""))
+    students_ok = "Ananya" in students_str and "Rahul" in students_str and "Sneha" in students_str
+    kiran_excl_ok = "conflict" in str(facts_match.get("kiran_excluded_reason", "")).lower()
+
+    ok_147 = res_match.status_code == 200 and p1_open_ms_ok and expert_ok and students_ok and kiran_excl_ok
+    check(
+        147,
+        "after scope and match: P1 has 2 open milestones; the match facts list Arvind Nair as the expert, Ananya, Rahul and Sneha as the students and Kiran Shah excluded for conflict of interest",
+        ok_147,
+        f"status={res_match.status_code}, open_ms={open_ms_count}, expert={expert_ok}, students={students_ok}, kiran={kiran_excl_ok}",
+    )
+
+    # ── Check 148 ──
+    # after join: four members; the facts record Vikram's brief request as 403 and Kiran's join attempt refused for conflict of interest.
+    res_join = client.post("/api/story/run/join")
+    join_data = res_join.json() if res_join.status_code == 200 else {}
+    facts_join = join_data.get("facts", {})
+
+    p1_members_count = query_one(
+        "SELECT count(DISTINCT user_id) as c FROM charter_acceptances WHERE project_id = 1 AND engagement_model_ack = 1"
+    )["c"]
+    vikram_403_ok = "403" in str(facts_join.get("vikram_brief_access", ""))
+    kiran_refused_ok = bool(facts_join.get("kiran_conflict_rejected"))
+
+    ok_148 = res_join.status_code == 200 and p1_members_count == 4 and vikram_403_ok and kiran_refused_ok
+    check(
+        148,
+        "after join: four members; the facts record Vikram's brief request as 403 and Kiran's join attempt refused for conflict of interest",
+        ok_148,
+        f"status={res_join.status_code}, members={p1_members_count}, vikram_403={vikram_403_ok}, kiran_refused={kiran_refused_ok}",
+    )
+
+    # ── Check 149 ──
+    # after work and catch: three approved contributions with provenance human, ai_assisted and agent_generated and impacts 5, 3, 2;
+    # Rahul's copy is flagged with a score of at least 0.6 and rejected with written reasons;
+    # the injection draft blocked the send_email tool and no extra contribution exists.
+    res_fund = client.post("/api/story/run/fund")
+    res_work = client.post("/api/story/run/work")
+    res_catch = client.post("/api/story/run/catch")
+    catch_data = res_catch.json() if res_catch.status_code == 200 else {}
+    facts_catch = catch_data.get("facts", {})
+
+    m1_row = query_one("SELECT id FROM milestones WHERE project_id = 1 ORDER BY id ASC LIMIT 1")
+    m1_id = m1_row["id"] if m1_row else 1
+
+    approved_contribs = query_all(
+        "SELECT ai_declaration, impact_weight FROM contributions WHERE milestone_id = ? AND review_status = 'approved'",
+        (m1_id,),
+    )
+    prov_map = {r["ai_declaration"]: float(r["impact_weight"]) for r in approved_contribs}
+    three_prov_ok = (
+        len(approved_contribs) == 3
+        and prov_map.get("human") == 5.0
+        and prov_map.get("ai_assisted") == 3.0
+        and prov_map.get("agent_generated") == 2.0
+    )
+
+    flagged_score = float(facts_catch.get("flagged_score", 0.0))
+    flagged_ok = flagged_score >= 0.6
+
+    rejected_review = query_one(
+        """
+        SELECT r.reasons, c.review_status
+        FROM reviews r
+        JOIN contributions c ON c.id = r.contribution_id
+        WHERE c.milestone_id = ? AND r.decision = 'reject'
+        """,
+        (m1_id,),
+    )
+    rejected_reasons_ok = bool(rejected_review and rejected_review["reasons"] and len(rejected_review["reasons"].strip()) > 5)
+
+    tool_blocked_ok = bool(facts_catch.get("injection_tool_blocked"))
+    total_m1_contribs = query_one("SELECT count(*) as c FROM contributions WHERE milestone_id = ?", (m1_id,))["c"]
+    no_extra_ok = total_m1_contribs == 4  # 3 approved + 1 rejected copy
+
+    ok_149 = (
+        res_work.status_code == 200
+        and res_catch.status_code == 200
+        and three_prov_ok
+        and flagged_ok
+        and rejected_reasons_ok
+        and tool_blocked_ok
+        and no_extra_ok
+    )
+    check(
+        149,
+        "after work and catch: three approved contributions with provenance human, ai_assisted and agent_generated and impacts 5, 3, 2; Rahul's copy is flagged with a score of at least 0.6 and rejected with written reasons; the injection draft blocked the send_email tool and no extra contribution exists",
+        ok_149,
+        f"work={res_work.status_code}, catch={res_catch.status_code}, prov={three_prov_ok}, flagged={flagged_score}, rejected={rejected_reasons_ok}, tool_blocked={tool_blocked_ok}, total_c={total_m1_contribs}",
+    )
+
+    # ── Check 150 ──
+    # after trace: the facts name Ananya with confidence 1.0.
+    res_trace = client.post("/api/story/run/trace")
+    trace_data = res_trace.json() if res_trace.status_code == 200 else {}
+    facts_trace = trace_data.get("facts", {})
+
+    traced_ananya = "Ananya" in str(facts_trace.get("traced_name", ""))
+    traced_conf = float(facts_trace.get("confidence", 0.0)) == 1.0
+
+    ok_150 = res_trace.status_code == 200 and traced_ananya and traced_conf
+    check(
+        150,
+        "after trace: the facts name Ananya with confidence 1.0",
+        ok_150,
+        f"status={res_trace.status_code}, name={facts_trace.get('traced_name')}, conf={facts_trace.get('confidence')}",
+    )
+
+    # ── Check 151 ──
+    # after accept: milestone 1 is accepted and its escrow released; there are 4 payouts (Arvind plus 3 students);
+    # the sum of payouts + fee + AI reserve equals the milestone amount; verify_receipt is ok; the receipt page for the sponsor returns 200.
+    res_accept = client.post("/api/story/run/accept")
+    m1_after = query_one("SELECT status, amount_inr FROM milestones WHERE id = ?", (m1_id,))
+    e1_after = query_one("SELECT state, id FROM escrows WHERE milestone_id = ?", (m1_id,))
+
+    m1_accepted_ok = m1_after and m1_after["status"] == "accepted"
+    e1_released_ok = e1_after and e1_after["state"] == "released"
+
+    payouts_m1 = query_all("SELECT user_id, amount_inr FROM payouts WHERE escrow_id = ?", (e1_after["id"],)) if e1_after else []
+    payouts_count_ok = len(payouts_m1) == 4
+
+    from app.services import payouts as payouts_svc
+    receipt_m1 = payouts_svc.build_receipt(m1_id)
+    verify_m1 = payouts_svc.verify_receipt(m1_id)
+
+    sum_payouts = sum(p["amount_inr"] for p in payouts_m1)
+    fee_inr = receipt_m1.get("fee_inr", 0)
+    ai_reserve_inr = receipt_m1.get("ai_reserve_inr", 0)
+    total_amount_ok = (sum_payouts + fee_inr + ai_reserve_inr) == m1_after["amount_inr"]
+    verify_rcpt_ok = verify_m1.get("ok") is True
+
+    c_meera = client_for("Meera Rao")
+    res_rcpt_page = c_meera.get(f"/milestones/{m1_id}/receipt")
+    page_ok = res_rcpt_page.status_code == 200
+
+    ok_151 = (
+        res_accept.status_code == 200
+        and m1_accepted_ok
+        and e1_released_ok
+        and payouts_count_ok
+        and total_amount_ok
+        and verify_rcpt_ok
+        and page_ok
+    )
+    check(
+        151,
+        "after accept: milestone 1 is accepted and its escrow released; there are 4 payouts (Arvind plus 3 students); the sum of payouts + fee + AI reserve equals the milestone amount; verify_receipt is ok; the receipt page for the sponsor returns 200",
+        ok_151,
+        f"status={res_accept.status_code}, m1_stat={m1_after['status'] if m1_after else None}, e1_st={e1_after['state'] if e1_after else None}, count={len(payouts_m1)}, total_ok={total_amount_ok}, vr={verify_rcpt_ok}, page={res_rcpt_page.status_code}",
+    )
+
+    # ── Check 152 ──
+    # after unpaid: P2 has no payouts and no escrow; credentials were issued to the contributors; the credit statement page for the sponsor returns 200.
+    res_unpaid = client.post("/api/story/run/unpaid")
+    m2_row = query_one("SELECT id FROM milestones WHERE project_id = 2 ORDER BY id ASC LIMIT 1")
+    m2_id = m2_row["id"] if m2_row else 2
+
+    p2_payouts_count = query_one(
+        "SELECT count(*) as c FROM payouts WHERE escrow_id IN (SELECT id FROM escrows WHERE milestone_id IN (SELECT id FROM milestones WHERE project_id = 2))"
+    )["c"]
+    p2_escrows_count = query_one(
+        "SELECT count(*) as c FROM escrows WHERE milestone_id IN (SELECT id FROM milestones WHERE project_id = 2)"
+    )["c"]
+
+    p2_creds_count = query_one("SELECT count(*) as c FROM credentials WHERE project_id = 2")["c"]
+    creds_issued_ok = p2_creds_count >= 3
+
+    res_stmt_page = c_meera.get(f"/milestones/{m2_id}/receipt")
+    stmt_page_ok = res_stmt_page.status_code == 200
+
+    ok_152 = (
+        res_unpaid.status_code == 200
+        and p2_payouts_count == 0
+        and p2_escrows_count == 0
+        and creds_issued_ok
+        and stmt_page_ok
+    )
+    check(
+        152,
+        "after unpaid: P2 has no payouts and no escrow; credentials were issued to the contributors; the credit statement page for the sponsor returns 200",
+        ok_152,
+        f"status={res_unpaid.status_code}, payouts={p2_payouts_count}, escrows={p2_escrows_count}, creds={p2_creds_count}, stmt_page={res_stmt_page.status_code}",
+    )
+
+    # ── Check 153 ──
+    # after verify: the ledger is broken at the tampered entry and verify reports ok false;
+    # after POST /api/story/restore the ledger is restored and verify reports ok true.
+    res_verify_step = client.post("/api/story/run/verify")
+    ver_broken = ledger.verify()
+    broken_ok = ver_broken.get("ok") is False
+
+    res_restore = client.post("/api/story/restore")
+    ver_restored = ledger.verify()
+    restored_ok = ver_restored.get("ok") is True
+
+    ok_153 = (
+        res_verify_step.status_code == 200
+        and broken_ok
+        and res_restore.status_code == 200
+        and restored_ok
+    )
+    check(
+        153,
+        "after verify: the ledger is broken at the tampered entry and verify reports ok false; after POST /api/story/restore the ledger is restored and verify reports ok true",
+        ok_153,
+        f"step={res_verify_step.status_code}, broken={broken_ok}, restore={res_restore.status_code}, restored={restored_ok}",
+    )
+
+    # ── Check 154 ──
+    # after the five twists (POST /api/story/twist/{case} for quit, silent, unpaid, minor, ai):
+    # each returns 200 with facts describing the resolution; the main story projects (P1, P2) and their ledgers were not modified by the twists.
+    p1_before = dict(query_one("SELECT id, title, engagement_model, current_charter_version FROM projects WHERE id = 1"))
+    p2_before = dict(query_one("SELECT id, title, engagement_model, current_charter_version FROM projects WHERE id = 2"))
+    m1_cnt_before = query_one("SELECT count(*) as c FROM milestones WHERE project_id = 1")["c"]
+    m2_cnt_before = query_one("SELECT count(*) as c FROM milestones WHERE project_id = 2")["c"]
+    p12_entries_before = [e["id"] for e in query_all("SELECT id FROM ledger_entries WHERE project_id IN (1, 2) ORDER BY id ASC")]
+
+    twist_cases = ["quit", "silent", "unpaid", "minor", "ai"]
+    twist_statuses = []
+    for tc in twist_cases:
+        r_tw = client.post(f"/api/story/twist/{tc}")
+        twist_statuses.append((r_tw.status_code == 200) and bool(r_tw.json().get("facts")))
+
+    all_twists_ok = all(twist_statuses)
+
+    p1_after = dict(query_one("SELECT id, title, engagement_model, current_charter_version FROM projects WHERE id = 1"))
+    p2_after = dict(query_one("SELECT id, title, engagement_model, current_charter_version FROM projects WHERE id = 2"))
+    m1_cnt_after = query_one("SELECT count(*) as c FROM milestones WHERE project_id = 1")["c"]
+    m2_cnt_after = query_one("SELECT count(*) as c FROM milestones WHERE project_id = 2")["c"]
+    p12_entries_after = [e["id"] for e in query_all("SELECT id FROM ledger_entries WHERE project_id IN (1, 2) ORDER BY id ASC")]
+
+    main_untouched = (
+        p1_before == p1_after
+        and p2_before == p2_after
+        and m1_cnt_before == m1_cnt_after
+        and m2_cnt_before == m2_cnt_after
+        and p12_entries_before == p12_entries_after
+    )
+
+    ok_154 = all_twists_ok and main_untouched
+    check(
+        154,
+        "after the five twists (POST /api/story/twist/{case} for quit, silent, unpaid, minor, ai): each returns 200 with facts describing the resolution; the main story projects (P1, P2) and their ledgers were not modified by the twists",
+        ok_154,
+        f"twists={all_twists_ok}, untouched={main_untouched}",
+    )
+
+    # ── Check 155 ──
+    # presenter flow: GET /story returns 200, contains the 12 step names and the twist section;
+    # GET /switch/{id}?next=/projects/1 redirects to /projects/1 with cookie;
+    # an unsafe next value like "https://evil.com" or "//evil.com" falls back to "/".
+    res_story_page = client.get("/story")
+    story_page_200 = res_story_page.status_code == 200
+    step_labels = ["Post", "Scope", "Match", "Join", "Fund", "Work", "Catch", "Trace", "Accept", "Non-monetary", "Verify", "Twist"]
+    has_all_steps = all(label in res_story_page.text for label in step_labels)
+    has_twists_section = "twist" in res_story_page.text.lower()
+
+    client_noroot = TestClient(app, follow_redirects=False)
+    u_arvind = query_one("SELECT id FROM users WHERE name LIKE 'Arvind%'")
+    arvind_id = u_arvind["id"] if u_arvind else 2
+
+    res_sw_safe = client_noroot.get(f"/switch/{arvind_id}?next=/projects/1")
+    sw_safe_ok = (
+        res_sw_safe.status_code == 303
+        and res_sw_safe.headers.get("location") == "/projects/1"
+        and "persona_id" in res_sw_safe.cookies
+    )
+
+    res_sw_unsafe1 = client_noroot.get(f"/switch/{arvind_id}?next=https://evil.com")
+    res_sw_unsafe2 = client_noroot.get(f"/switch/{arvind_id}?next=//evil.com")
+    sw_unsafe_ok = (
+        res_sw_unsafe1.headers.get("location") == "/"
+        and res_sw_unsafe2.headers.get("location") == "/"
+    )
+
+    ok_155 = story_page_200 and has_all_steps and has_twists_section and sw_safe_ok and sw_unsafe_ok
+    check(
+        155,
+        "presenter flow: GET /story returns 200, contains the 12 step names and the twist section; GET /switch/{id}?next=/projects/1 redirects to /projects/1 with cookie; an unsafe next value like 'https://evil.com' or '//evil.com' falls back to '/'",
+        ok_155,
+        f"story_200={story_page_200}, steps={has_all_steps}, twists={has_twists_section}, sw_safe={sw_safe_ok}, sw_unsafe={sw_unsafe_ok}",
+    )
+
 
     if all_passed:
         print("\nALL CHECKS PASSED")

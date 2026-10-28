@@ -102,6 +102,28 @@
     </div>
 </div>
 
+{# ── AI Breakdown ── #}
+{% if receipt.ai_breakdown %}
+<div class="card" style="margin-bottom:1.75rem">
+    <h2 style="font-size:1.15rem;margin-bottom:0.75rem">AI Composition Breakdown</h2>
+    <div style="margin-bottom:0.75rem">
+        <div style="display:flex;height:12px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden;gap:2px">
+            <div style="background:#3DD6FF;width:{{ receipt.ai_breakdown.human }}%" title="Human: {{ receipt.ai_breakdown.human }}%"></div>
+            <div style="background:#FFB020;width:{{ receipt.ai_breakdown.ai_assisted }}%" title="AI-assisted: {{ receipt.ai_breakdown.ai_assisted }}%"></div>
+            <div style="background:#C6FF3D;width:{{ receipt.ai_breakdown.agent_generated }}%" title="Agent-generated: {{ receipt.ai_breakdown.agent_generated }}%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.5rem;font-size:0.82rem;flex-wrap:wrap;gap:0.5rem">
+            <span style="color:#3DD6FF">● Human: <strong>{{ receipt.ai_breakdown.human }}%</strong></span>
+            <span style="color:#FFB020">● AI-assisted: <strong>{{ receipt.ai_breakdown.ai_assisted }}%</strong></span>
+            <span style="color:#C6FF3D">● Agent-generated: <strong>{{ receipt.ai_breakdown.agent_generated }}%</strong></span>
+        </div>
+    </div>
+    <p class="muted-text" style="font-size:0.8rem;margin:0">
+        AI share is disclosed; credit goes to the humans who directed and reviewed the work
+    </p>
+</div>
+{% endif %}
+
 {# ── Individual Payout Lines ── #}
 <div class="card" style="margin-bottom:1.75rem">
     <h2 style="font-size:1.15rem;margin-bottom:1rem">Individual Recipient Breakdown</h2>

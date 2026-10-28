@@ -220,6 +220,24 @@ def seed_projects() -> None:
         """,
         (1, 1, json.dumps(p1_terms), p1_hash, now_iso),
     )
+    import hashlib
+    import app.ledger as ledger
+    p1_brief_hash = hashlib.sha256(p1_confidential_brief.encode("utf-8")).hexdigest()
+    ledger.append(
+        action="project_posted",
+        actor_id=2,
+        actor_type="human",
+        human_owner_id=2,
+        project_id=1,
+        charter_version=1,
+        payload={
+            "title": "Low-cost detection of diabetic retinopathy from fundus images on edge devices",
+            "engagement_model": "funded",
+            "sensitivity_label": "confidential",
+            "brief_hash": p1_brief_hash,
+            "charter_hash": p1_hash,
+        },
+    )
 
     # P2: Knowledge sharing, internal, strictly UNPAID
     p2_terms = {
@@ -274,5 +292,21 @@ def seed_projects() -> None:
         VALUES (?, ?, ?, ?, ?)
         """,
         (2, 1, json.dumps(p2_terms), p2_hash, now_iso),
+    )
+    p2_brief_hash = hashlib.sha256(p2_confidential_brief.encode("utf-8")).hexdigest()
+    ledger.append(
+        action="project_posted",
+        actor_id=2,
+        actor_type="human",
+        human_owner_id=2,
+        project_id=2,
+        charter_version=1,
+        payload={
+            "title": "Open annotation guidelines and benchmark for retinal image quality",
+            "engagement_model": "knowledge_sharing",
+            "sensitivity_label": "internal",
+            "brief_hash": p2_brief_hash,
+            "charter_hash": p2_hash,
+        },
     )
 

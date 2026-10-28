@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Story Mode — Provenance Presenter Walkthrough{% endblock %}
+
+{% block content %}
+<div class="story-container">
+    {# Demo banner #}
+    <div class="mock-banner" style="margin-bottom:1.5rem;padding:0.75rem 1rem;background:rgba(255,176,32,0.1);border-left:3px solid var(--pending);color:var(--pending);border-radius:4px;font-size:0.85rem">
+        <strong>DEMO TOOL:</strong> Story Mode impersonates personas. <em>MOCKED: disabled when PROVENANCE_DEMO=0</em>
+    </div>
+
+    {# Header & Global Controls #}
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:2rem;border-bottom:1px solid var(--line);padding-bottom:1.25rem">
+        <div>
+            <h1 style="font-size:1.85rem;margin:0 0 0.35rem 0">Story Mode</h1>
+            <p class="muted-text" style="margin:0;font-size:0.92rem">
+                Presenter's end-to-end interactive orchestrator running live services across personas.
+            </p>
+        </div>
+        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+            <button id="btn-run-all" class="btn btn-primary" style="background:#C6FF3D;color:#0B0D10;font-weight:700">
+                ▶ Run All Remaining
+            </button>
+            <button id="btn-restore-chain" class="btn btn-secondary" style="border-color:var(--broken);color:var(--broken);{% if not is_broken %}display:none;{% endif %}">
+                ⚠️ Restore Chain
+            </button>
+            <button id="btn-reset-demo" class="btn btn-secondary" style="color:var(--muted)">
+                ↺ Reset Demo Data
+            </button>
+        </div>
+    </div>
+
+    <div class="story-layout" style="display:grid;grid-template-columns:1fr 1.15fr;gap:2rem">
+        {# Left Column: Vertical Stepper #}
+        <div class="stepper-col">
+            <h2 style="font-size:1.2rem;margin-bottom:1rem">Execution Steps</h2>
+            <div class="story-stepper" id="story-stepper">
+                {% for s in steps %}
+                <div class="stepper-item card {% if s.status == 'done' %}step-done{% elif s.status == 'todo' %}step-todo{% else %}step-blocked{% endif %}" id="step-card-{{ s.key }}" style="margin-bottom:0.75rem;padding:0.85rem 1rem">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem">
+                        <div style="display:flex;align-items:center;gap:0.6rem">
+                            <span class="step-num-badge">{{ loop.index }}</span>
+                            <strong style="font-size:0.98rem">{{ s.title }}</strong>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:0.5rem">
+                            <span class="chip chip-status chip-{{ s.status }}" id="chip-{{ s.key }}">{{ s.status | upper }}</span>
+                            <button class="btn btn-sm btn-run-step {% if s.status == 'todo' %}btn-primary btn-next-highlight{% else %}btn-secondary{% endif %}" data-key="{{ s.key }}" {% if s.status == 'blocked' %}disabled{% endif %}>
+                                {% if s.status == 'done' %}Re-run{% else %}Run{% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Right Column: Active Results & Twist Sandbox #}
+        <div class="detail-col">
+            {# Result Panel #}
+            <div class="card result-panel" id="result-panel" style="margin-bottom:1.75rem;min-height:220px;padding:1.25rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:0.75rem;margin-bottom:1rem">
+                    <h2 id="result-title" style="font-size:1.2rem;margin:0">Step Output</h2>
+                    <span id="result-status-chip" class="chip chip-lime" style="display:none">COMPLETED</span>
+                </div>
+                <p id="result-summary" style="font-size:0.92rem;line-height:1.6;color:#c7d2de">
+                    Click <strong>Run</strong> on any enabled step or <strong>Run All Remaining</strong> to watch the orchestrator progress.
+                </p>
+
+                {# Facts Table #}
+                <div id="result-facts-container" style="display:none;margin-top:1rem">
+                    <h3 style="font-size:0.95rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted);margin-bottom:0.5rem">Verified Facts</h3>
+                    <div class="facts-grid" id="result-facts-grid" style="display:grid;grid-template-columns:auto 1fr;gap:0.4rem 1rem;background:rgba(0,0,0,0.25);padding:0.75rem 1rem;border-radius:6px;font-size:0.88rem">
+                    </div>
+                </div>
+
+                {# Persona Switch Links #}
+                <div id="result-personas-container" style="display:none;margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line)">
+                    <h3 style="font-size:0.95rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted);margin-bottom:0.6rem">View as Persona</h3>
+                    <div id="result-personas-list" style="display:flex;gap:0.5rem;flex-wrap:wrap">
+                    </div>
+                </div>
+            </div>
+
+            {# Twist Panel #}
+            <div class="card twist-panel" style="padding:1.25rem">
+                <div style="border-bottom:1px solid var(--line);padding-bottom:0.6rem;margin-bottom:1rem">
+                    <h2 style="font-size:1.15rem;margin:0 0 0.25rem 0">Corner-Case Twists (Sandbox)</h2>
+                    <p class="muted-text" style="font-size:0.82rem;margin:0">
+                        Isolated test projects exercising edge cases without disturbing the main story.
+                    </p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:0.75rem">
+                    <div class="twist-item card" style="background:#12161B;padding:0.75rem;border-color:var(--line)">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <div>
+                                <strong style="font-size:0.92rem">1. Quits Midway</strong>
+                                <div class="muted-text" style="font-size:0.8rem">Member leaves project; brief locked, payout/credit kept.</div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm btn-twist" data-case="quit">Run Twist</button>
+                        </div>
+                    </div>
+
+                    <div class="twist-item card" style="background:#12161B;padding:0.75rem;border-color:var(--line)">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <div>
+                                <strong style="font-size:0.92rem">2. Sponsor Goes Silent</strong>
+                                <div class="muted-text" style="font-size:0.8rem">7-day acceptance window passes; auto-accepted with payouts.</div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm btn-twist" data-case="silent">Run Twist</button>
+                        </div>
+                    </div>
+
+                    <div class="twist-item card" style="background:#12161B;padding:0.75rem;border-color:var(--line)">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <div>
+                                <strong style="font-size:0.92rem">3. Paid Becomes Unpaid</strong>
+                                <div class="muted-text" style="font-size:0.8rem">Charter model transition; members re-accept or leave.</div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm btn-twist" data-case="unpaid">Run Twist</button>
+                        </div>
+                    </div>
+
+                    <div class="twist-item card" style="background:#12161B;padding:0.75rem;border-color:var(--line)">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <div>
+                                <strong style="font-size:0.92rem">4. Minor Protection</strong>
+                                <div class="muted-text" style="font-size:0.8rem">Minor Tara blocked from joining funded project without guardian consent.</div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm btn-twist" data-case="minor">Run Twist</button>
+                        </div>
+                    </div>
+
+                    <div class="twist-item card" style="background:#12161B;padding:0.75rem;border-color:var(--line)">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <div>
+                                <strong style="font-size:0.92rem">5. AI Wrote Most</strong>
+                                <div class="muted-text" style="font-size:0.8rem">Agent-generated work disclosed on receipt; credit goes to human.</div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm btn-twist" data-case="ai">Run Twist</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/story.js"></script>
+{% endblock %}

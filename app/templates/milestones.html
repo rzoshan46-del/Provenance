@@ -205,13 +205,26 @@
                         <form method="POST" action="/milestones/{{ ms.id }}/accept" onsubmit="return confirm('Accept milestone and release payouts/credentials?');">
                             <button type="submit" class="btn btn-primary" style="background:#C6FF3D;color:#0B0D10;font-weight:700">Accept and release</button>
                         </form>
+                        {% if user and user.role == 'admin' and demo_mode() %}
+                        <form method="POST" action="/milestones/{{ ms.id }}/simulate-days" style="margin-top:0.75rem;background:rgba(255,176,32,0.07);border:1px dashed rgba(255,176,32,0.4);padding:0.75rem;border-radius:var(--radius-sm)">
+                            <small style="color:var(--pending);font-weight:700">DEMO TOOL: simulate days</small>
+                            <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
+                                <input type="number" name="days" value="7" min="1" style="width:70px;background:rgba(0,0,0,0.3);border:1px solid var(--line);color:var(--text);padding:0.3rem;border-radius:4px">
+                                <button type="submit" class="btn btn-sm" style="background:rgba(255,176,32,0.2);color:var(--pending);border:1px solid rgba(255,176,32,0.4)">Simulate days →</button>
+                            </div>
+                        </form>
+                        {% endif %}
                     {% endif %}
                 {% endif %}
 
                 {% if is_expert and ms.status == 'open' %}
-                    <form method="POST" action="/milestones/{{ ms.id }}/submit">
-                        <button type="submit" class="btn btn-secondary">Submit milestone for acceptance →</button>
-                    </form>
+                    {% if ms.has_flagged %}
+                        <button type="button" class="btn btn-secondary" disabled title="Resolve flagged contributions first" style="opacity:0.5;cursor:not-allowed">Resolve flagged contributions first</button>
+                    {% else %}
+                        <form method="POST" action="/milestones/{{ ms.id }}/submit">
+                            <button type="submit" class="btn btn-secondary">Submit milestone for acceptance →</button>
+                        </form>
+                    {% endif %}
                 {% endif %}
             </div>
             {% endif %}
@@ -228,8 +241,10 @@
                                     <strong style="color:var(--text);font-size:0.95rem">{{ c.artefact_title }}</strong>
                                     <span class="muted-text" style="font-size:0.82rem;margin-left:0.5rem">by {{ c.author_name }} ({{ c.author_role }})</span>
                                 </div>
-                                <div style="display:flex;align-items:center;gap:0.4rem">
-                                    {% if c.ai_declaration == 'human' %}
+                                <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
+                                    {% if c.provenance and c.provenance.label %}
+                                        <span class="chip {% if c.provenance.kind == 'human' %}chip-cyan{% elif c.provenance.kind == 'ai_assisted' %}chip-amber{% else %}chip-lime{% endif %}">{{ c.provenance.label }}</span>
+                                    {% elif c.ai_declaration == 'human' %}
                                         <span class="chip chip-cyan">Human</span>
                                     {% elif c.ai_declaration == 'ai_assisted' %}
                                         <span class="chip chip-amber">AI-assisted</span>
@@ -241,6 +256,8 @@
                                         <span class="chip chip-lime">APPROVED (Impact: {{ c.impact_weight | int }})</span>
                                     {% elif c.review_status == 'rejected' %}
                                         <span class="chip chip-red">REJECTED</span>
+                                    {% elif c.review_status == 'flagged' %}
+                                        <span class="chip chip-red" style="font-weight:700">FLAGGED</span>
                                     {% else %}
                                         <span class="chip chip-amber">PENDING REVIEW</span>
                                     {% endif %}
@@ -250,6 +267,58 @@
                             <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem">
                                 <span title="{{ c.artefact_hash }}" style="font-family:var(--font-mono)">Artefact SHA-256: {{ c.artefact_hash[:12] }}…</span>
                             </div>
+
+                            {% if c.review_status == 'flagged' and c.integrity_report %}
+                            <details class="integrity-report" style="margin: 0.5rem 0 0.75rem 0; background: rgba(255, 77, 79, 0.05); border: 1px solid rgba(255, 77, 79, 0.35); border-radius: 6px; padding: 0.6rem 0.85rem;" open>
+                                <summary style="font-size:0.82rem;font-weight:700;color:#FF4D4F;cursor:pointer">Integrity Report</summary>
+                                <div style="margin-top:0.6rem">
+                                    <div style="margin-bottom:0.5rem">
+                                        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--muted);margin-bottom:0.25rem;">
+                                            <span>Similarity Score: <strong style="color:{% if c.integrity_report.score >= 0.6 %}#FF4D4F{% else %}#C6FF3D{% endif %}">{{ "%.2f"|format(c.integrity_report.score) }}</strong></span>
+                                            <span>Flag Threshold: 0.60</span>
+                                        </div>
+                                        <div style="position:relative;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">
+                                            <div style="height:100%;width:{{ [((c.integrity_report.score * 100)|round), 100]|min }}%;background:{% if c.integrity_report.score >= 0.6 %}#FF4D4F{% else %}#C6FF3D{% endif %};border-radius:4px;"></div>
+                                            <div style="position:absolute;left:60%;top:0;bottom:0;width:2px;background:#FFB020;" title="0.60 Threshold"></div>
+                                        </div>
+                                    </div>
+
+                                    {% if c.integrity_report.reasons %}
+                                    <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.5rem">
+                                        {% for r in c.integrity_report.reasons %}
+                                            {% if r == 'similarity' %}
+                                                <span class="chip chip-amber" style="font-size:0.75rem">Similarity {{ "%.2f"|format(c.integrity_report.score) }}</span>
+                                            {% elif r == 'possible_undisclosed_ai' %}
+                                                <span class="chip chip-amber" style="font-size:0.75rem">Possible undisclosed AI (MOCKED heuristic)</span>
+                                            {% else %}
+                                                <span class="chip chip-amber" style="font-size:0.75rem">{{ r }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if c.integrity_report.cross_project %}
+                                        <div style="font-size:0.8rem;color:#FFB020;padding:0.4rem 0.6rem;background:rgba(255,176,32,0.1);border-radius:4px;border:1px solid rgba(255,176,32,0.3)">
+                                            matches content in another project (details hidden)
+                                        </div>
+                                    {% elif c.integrity_report.matched_contribution_id %}
+                                        <div style="font-size:0.82rem;color:var(--text);border-top:1px solid rgba(255,255,255,0.06);padding-top:0.4rem">
+                                            <div><strong>Matched Work:</strong> {{ c.integrity_report.matched_title }} by {{ c.integrity_report.matched_author_name }}</div>
+                                            {% if c.integrity_report.shared_phrases %}
+                                                <div style="margin-top:0.35rem;font-size:0.78rem;color:var(--muted)">
+                                                    <strong>Shared phrases:</strong>
+                                                    <ul style="margin:0.2rem 0 0 1.2rem;padding:0">
+                                                        {% for phrase in c.integrity_report.shared_phrases %}
+                                                            <li><em style="color:#FFB020">"{{ phrase }}"</em></li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </details>
+                            {% endif %}
 
                             <details style="margin-bottom:0.5rem">
                                 <summary style="font-size:0.8rem;cursor:pointer;color:var(--muted)">View Artefact Text</summary>
@@ -261,12 +330,19 @@
                             <div style="background:rgba(255,255,255,0.03);padding:0.6rem;border-radius:4px;margin-top:0.5rem">
                                 <span class="meta-label" style="margin-bottom:0.35rem;display:block">Expert Review Evaluation</span>
                                 <div style="display:flex;gap:1rem;flex-wrap:wrap">
-                                    <form method="POST" action="/contributions/{{ c.id }}/review" style="display:inline-flex;align-items:center;gap:0.4rem">
+                                    <form method="POST" action="/contributions/{{ c.id }}/review" style="display:inline-flex;flex-direction:column;gap:0.4rem;width:100%">
                                         <input type="hidden" name="decision" value="approve">
-                                        <label style="font-size:0.8rem;color:var(--muted)">Impact (1-10):</label>
-                                        <input type="number" name="impact_score" min="1" max="10" value="5" required style="width:55px;padding:0.25rem">
-                                        <input type="text" name="criteria_ref" placeholder="Criteria ref" style="font-size:0.8rem;padding:0.25rem;width:120px">
-                                        <button type="submit" class="btn btn-primary" style="font-size:0.78rem;padding:0.25rem 0.6rem">Approve</button>
+                                        <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
+                                            <label style="font-size:0.8rem;color:var(--muted)">Impact (1-10):</label>
+                                            <input type="number" name="impact_score" min="1" max="10" value="5" required style="width:55px;padding:0.25rem">
+                                            <input type="text" name="criteria_ref" placeholder="Criteria ref" style="font-size:0.8rem;padding:0.25rem;width:120px">
+                                            <button type="submit" class="btn btn-primary" style="font-size:0.78rem;padding:0.25rem 0.6rem">Approve</button>
+                                        </div>
+                                        {% if c.review_status == 'flagged' %}
+                                            <div style="margin-top:0.35rem">
+                                                <textarea name="reasons" required placeholder="Written justification (required for flagged work)" rows="2" style="width:100%;font-size:0.8rem;padding:0.35rem;border-radius:4px;background:#0B0D10;color:var(--text);border:1px solid rgba(255,77,79,0.5)"></textarea>
+                                            </div>
+                                        {% endif %}
                                     </form>
 
                                     <form method="POST" action="/contributions/{{ c.id }}/review" style="display:inline-flex;align-items:center;gap:0.4rem">

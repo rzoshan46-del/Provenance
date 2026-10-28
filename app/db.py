@@ -3,6 +3,13 @@ from pathlib import Path
 import sqlite3
 from typing import Any, List, Optional, Sequence, Union
 
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except Exception:  # pragma: no cover
+    psycopg = None
+    dict_row = None
+
 DB_DEFAULT_PATH = "data/app.db"
 
 
@@ -14,8 +21,18 @@ def get_db_path() -> Path:
     return path
 
 
-def get_conn() -> sqlite3.Connection:
-    """Return a new SQLite connection with Row factory and foreign keys enabled."""
+def has_postgres_url() -> bool:
+    url = os.environ.get("PROVENANCE_DATABASE_URL", "").strip()
+    return bool(url and url.startswith(("postgresql://", "postgres://")))
+
+
+def get_conn() -> Any:
+    """Return a SQLite connection by default, or a Postgres connection when PROVENANCE_DATABASE_URL is set."""
+    if has_postgres_url():
+        if psycopg is None:
+            raise RuntimeError("psycopg is required when PROVENANCE_DATABASE_URL is configured")
+        return psycopg.connect(os.environ["PROVENANCE_DATABASE_URL"])
+
     conn = sqlite3.connect(str(get_db_path()))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -210,6 +227,10 @@ def query_one(query: str, params: Sequence[Any] = ()) -> Optional[sqlite3.Row]:
     """Execute a parameterised SELECT query and return the first row or None."""
     conn = get_conn()
     try:
+        if has_postgres_url():
+            with conn.cursor(row_factory=dict_row) as cursor:
+                cursor.execute(query, params)
+                return cursor.fetchone()
         cursor = conn.cursor()
         cursor.execute(query, params)
         return cursor.fetchone()
@@ -221,6 +242,10 @@ def query_all(query: str, params: Sequence[Any] = ()) -> List[sqlite3.Row]:
     """Execute a parameterised SELECT query and return all matching rows."""
     conn = get_conn()
     try:
+        if has_postgres_url():
+            with conn.cursor(row_factory=dict_row) as cursor:
+                cursor.execute(query, params)
+                return cursor.fetchall()
         cursor = conn.cursor()
         cursor.execute(query, params)
         return cursor.fetchall()
@@ -232,6 +257,11 @@ def execute(query: str, params: Sequence[Any] = ()) -> int:
     """Execute a parameterised DML statement, commit, and return lastrowid (or rowcount)."""
     conn = get_conn()
     try:
+        if has_postgres_url():
+            with conn.cursor() as cursor:
+                cursor.execute(query, params)
+                conn.commit()
+                return cursor.lastrowid or 0
         with conn:
             cursor = conn.cursor()
             cursor.execute(query, params)

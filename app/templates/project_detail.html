@@ -15,8 +15,25 @@
        You must re-accept the charter before you can access the confidential brief or continue working.</p>
     <a href="/projects/{{ project.id }}/join" class="btn btn-secondary">Re-accept Charter</a>
 </div>
+{% if model_changed %}
+<div class="engagement-banner" style="border-left:4px solid var(--info);background:rgba(61,214,255,0.07);margin-bottom:0.5rem;padding:1rem 1.25rem;border-radius:var(--radius-md)">
+    <strong style="color:#fff;display:block;margin-bottom:0.25rem">Engagement Model Changed</strong>
+    <span style="color:var(--muted)">Before:</span> <code>{{ prev_model }}</code>
+    &nbsp;→&nbsp;
+    <span style="color:var(--muted)">After:</span> <code>{{ project.engagement_model }}</code>
+    <br><small style="color:var(--muted)">You must acknowledge this change when re-accepting the charter.</small>
+</div>
+{% endif %}
 {% elif state == 'member' %}
 <div class="member-banner">✓ You are a member of this project (charter v{{ project.current_charter_version }})</div>
+{% endif %}
+
+{% if state in ('member', 'reaccept_required') and user %}
+<form method="POST" action="/projects/{{ project.id }}/leave" onsubmit="return confirm('Leave this project? Your approved contribution credits are kept permanently.')" style="margin-bottom:1rem">
+    <button type="submit" class="btn btn-sm" style="background:rgba(255,77,79,0.12);color:var(--broken);border:1px solid rgba(255,77,79,0.3)">
+        Leave project (keep your credit)
+    </button>
+</form>
 {% endif %}
 
 <div class="page-grid">

@@ -1,18 +1,32 @@
 import sqlite3
 from typing import Callable, Optional
 from fastapi import Depends, HTTPException, Request
+from app.config import get_auth_mode
 from app.db import query_one
 
 
 def current_user(request: Request) -> Optional[sqlite3.Row]:
-    """Read persona_id cookie and return the matching user row or None."""
-    persona_id = request.cookies.get("persona_id")
-    if not persona_id:
+    """Read the active authenticated user from the session or the demo persona cookie."""
+    user_id = None
+
+    if request.cookies.get("session_user_id"):
+        try:
+            user_id = int(request.cookies.get("session_user_id"))
+        except (ValueError, TypeError):
+            user_id = None
+
+    if user_id is None and get_auth_mode() == "demo":
+        persona_id = request.cookies.get("persona_id")
+        if not persona_id:
+            return None
+        try:
+            user_id = int(persona_id)
+        except (ValueError, TypeError):
+            return None
+
+    if user_id is None:
         return None
-    try:
-        user_id = int(persona_id)
-    except (ValueError, TypeError):
-        return None
+
     return query_one("SELECT * FROM users WHERE id = ?", (user_id,))
 
 

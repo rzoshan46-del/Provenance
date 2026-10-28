@@ -1423,6 +1423,54 @@ a:hover {
     border: 1px solid rgba(138, 151, 166, 0.3);
 }
 
+.action-chip-flagged {
+    background: rgba(255, 77, 79, 0.15);
+    color: #FF4D4F;
+    border: 1px solid rgba(255, 77, 79, 0.35);
+}
+
+.action-chip-viewed {
+    background: rgba(138, 151, 166, 0.12);
+    color: var(--muted);
+    border: 1px solid rgba(138, 151, 166, 0.25);
+}
+
+.action-chip-leak {
+    background: transparent;
+    color: #FF4D4F;
+    border: 1px solid #FF4D4F;
+}
+
+.action-chip-sponsor {
+    background: rgba(61, 214, 255, 0.12);
+    color: var(--info);
+    border: 1px solid rgba(61, 214, 255, 0.3);
+}
+
+.action-chip-success {
+    background: rgba(198, 255, 61, 0.12);
+    color: var(--verified);
+    border: 1px solid rgba(198, 255, 61, 0.3);
+}
+
+.action-chip-amber {
+    background: rgba(255, 176, 32, 0.12);
+    color: var(--pending);
+    border: 1px solid rgba(255, 176, 32, 0.3);
+}
+
+.action-chip-agent {
+    background: rgba(198, 255, 61, 0.12);
+    color: var(--verified);
+    border: 1px solid rgba(198, 255, 61, 0.3);
+}
+
+.action-chip-default {
+    background: rgba(138, 151, 166, 0.12);
+    color: var(--muted);
+    border: 1px solid rgba(138, 151, 166, 0.3);
+}
+
 /* 5. Demo Panel */
 .demo-panel {
     border: 1px solid rgba(255, 176, 32, 0.35);
@@ -2564,4 +2612,302 @@ a:hover {
 /* Cleaner topbar nav on small screens */
 @media (max-width: 720px) {
     .topbar-nav { display: none; }
+}
+
+/* Watermark Overlay */
+.watermark-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+    z-index: 9999;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    opacity: 0.06;
+}
+
+.watermark-overlay-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: rotate(-25deg);
+    font-size: 0.95rem;
+    font-family: var(--font-mono, monospace);
+    font-weight: 600;
+    color: #ffffff;
+    white-space: nowrap;
+}
+
+/* Integrity Centre Styles */
+.integrity-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding-bottom: 3rem;
+}
+
+.integrity-header {
+    margin-bottom: 1.75rem;
+}
+
+.integrity-tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 1.75rem;
+    flex-wrap: wrap;
+}
+
+.integrity-tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.65rem 1.25rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.integrity-tab-btn:hover {
+    color: var(--text);
+}
+
+.integrity-tab-btn.active {
+    color: var(--verified);
+    border-bottom-color: var(--verified);
+}
+
+.integrity-panel {
+    display: none;
+}
+
+.integrity-panel.active {
+    display: block;
+}
+
+.integrity-score-track {
+    position: relative;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+}
+
+.integrity-score-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.3s ease;
+}
+
+.integrity-score-threshold {
+    position: absolute;
+    left: 60%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--pending);
+}
+
+
+/* ============================================================
+   S6b — Story Mode Styles
+   ============================================================ */
+
+.story-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 3rem;
+}
+
+.story-header {
+    margin-bottom: 2rem;
+}
+
+.story-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .story-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.story-stepper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.story-step-item {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1.15rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    transition: border-color 0.15s ease;
+}
+
+.story-step-item:hover {
+    border-color: var(--info);
+}
+
+.step-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.step-num-badge {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 0.85rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.step-title-text {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.step-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.chip-status {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.2rem 0.55rem;
+    border-radius: 9999px;
+}
+
+.status-todo {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--muted);
+}
+
+.status-done {
+    background: rgba(198, 255, 61, 0.15);
+    color: var(--verified);
+    border: 1px solid rgba(198, 255, 61, 0.3);
+}
+
+.status-blocked {
+    background: rgba(255, 77, 79, 0.1);
+    color: var(--broken);
+    border: 1px solid rgba(255, 77, 79, 0.2);
+}
+
+.story-panel-sticky {
+    position: sticky;
+    top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.story-actions-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+}
+
+.story-btn-row {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+}
+
+.story-result-card {
+    background: var(--panel);
+    border: 1px solid var(--info);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.facts-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 1rem 0;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 0.85rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+}
+
+.fact-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.25rem;
+}
+
+.fact-key {
+    color: var(--muted);
+}
+
+.fact-val {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.twist-panel-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+}
+
+.twist-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.twist-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.65rem 0.85rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+}
+
+.twist-title {
+    font-weight: 600;
+    font-size: 0.9rem;
 }

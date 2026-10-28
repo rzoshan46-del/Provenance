@@ -62,10 +62,12 @@ def choose_route(
     
     Rules (SPEC §19):
     - mode 'canned' -> 'canned'
+    - mode 'off'/'none'/'disabled' -> 'canned' to avoid AI calls in a production-safe mode
     - confidential -> 'local' if available, otherwise 'canned' (NEVER 'api')
     - internal or public -> 'api' if has_api_key, otherwise 'canned'
     """
-    if str(mode).strip().lower() == "canned":
+    normalized_mode = str(mode).strip().lower()
+    if normalized_mode in {"canned", "off", "none", "disabled"}:
         return "canned"
 
     sens = str(sensitivity_label).strip().lower()

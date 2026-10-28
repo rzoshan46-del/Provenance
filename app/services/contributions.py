@@ -128,6 +128,9 @@ def submit_contribution(
         payload=ledger_payload,
     )
 
+    from app.integrity.service import check_contribution
+    check_contribution(contribution_id)
+
     return {
         "status": "submitted",
         "contribution_id": contribution_id,
@@ -229,6 +232,12 @@ def review_contribution(
     # 6. Decision specifics
     reasons_str = str(reasons or "").strip()
     criteria_str = str(criteria_ref or "").strip()
+
+    if contribution["review_status"] == "flagged" and not reasons_str:
+        raise HTTPException(
+            status_code=400,
+            detail="written justification required for flagged work",
+        )
 
     if dec == "approve":
         if impact_score is None:
@@ -342,4 +351,20 @@ def list_contributions(user: Any, milestone_id: int) -> List[Dict[str, Any]]:
         """,
         (milestone_id,),
     )
-    return [dict(r) for r in rows]
+    from app.integrity.provenance import label as provenance_label
+    from app.integrity.service import protect
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["provenance"] = provenance_label(d)
+        if d.get("artefact_text"):
+            d["artefact_text"] = protect(
+                viewer=user,
+                owner_id=d["author_id"],
+                text=d["artefact_text"],
+                resource="contribution",
+                resource_id=d["id"],
+                project_id=project["id"],
+            )
+        result.append(d)
+    return result

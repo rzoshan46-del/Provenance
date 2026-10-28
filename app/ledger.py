@@ -500,3 +500,21 @@ def restore_demo() -> int:
         return count
     finally:
         conn.close()
+
+
+def reset_for_demo() -> None:
+    """DEMO TOOL: reset ledger for demo mode.
+
+    Deletes all ledger rows and re-runs ensure_genesis().
+    The ONLY permitted DELETE on ledger_entries in the entire codebase.
+    """
+    if not demo_mode():
+        raise PermissionError("Demo mode disabled")
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM ledger_entries")
+        conn.execute("DELETE FROM sqlite_sequence WHERE name = 'ledger_entries'")
+        conn.commit()
+    finally:
+        conn.close()
+    ensure_genesis()

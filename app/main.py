@@ -1,15 +1,19 @@
 from contextlib import asynccontextmanager
 import json
+import os
 import sqlite3
 from typing import Any, Dict, Optional
 
+from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.access import can_view, membership_state
+from app.config import get_auth_mode, get_base_url, get_session_secret, google_auth_enabled
 from app.db import get_conn, init_db, query_all, query_one
 from app.deps import current_user, require_role
 from app.seed import seed_projects, seed_users
@@ -32,10 +36,21 @@ app = FastAPI(
     description="Collaborative Research Ecosystem",
     lifespan=lifespan,
 )
+app.add_middleware(SessionMiddleware, secret_key=get_session_secret())
 
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+oauth = OAuth()
+if google_auth_enabled():
+    oauth.register(
+        name="google",
+        client_id=os.getenv("GOOGLE_CLIENT_ID"),
+        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
 
 # Register custom Jinja filters
 templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
@@ -73,7 +88,9 @@ templates.env.filters["inr"] = inr_format
 
 # Jinja2 globals — callable from any template
 import app.credits as _credits_mod
+import app.ledger as _ledger_mod
 templates.env.globals["user_credits"] = _credits_mod.total  # user_credits(user_id) → int
+templates.env.globals["demo_mode"] = _ledger_mod.demo_mode
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -162,26 +179,77 @@ def home(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
 
 @app.get("/login")
 def login_page(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
-    """Login / persona selection page. MOCKED: production would use real Google OAuth."""
+    """Login page. Production uses Google OAuth when enabled; demo persona login remains optional only in demo mode."""
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
     if user:
         return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(
         request,
         "login.html",
-        {"user": user, "all_users": all_users},
+        {
+            "user": user,
+            "all_users": all_users,
+            "auth_mode": get_auth_mode(),
+            "google_enabled": google_auth_enabled(),
+        },
     )
 
 
 @app.get("/switch/{user_id}")
-def switch_persona(user_id: int):
-    # MOCKED: production would use real authentication and KYC
+def switch_persona(user_id: int, next: Optional[str] = None):
+    if get_auth_mode() != "demo":
+        raise HTTPException(status_code=403, detail="Demo persona switching is disabled in production auth mode")
+
     target_user = query_one("SELECT * FROM users WHERE id = ?", (user_id,))
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    response = RedirectResponse(url="/", status_code=303)
+    target_path = "/"
+    if next and next.startswith("/") and not next.startswith("//") and "://" not in next:
+        target_path = next
+
+    response = RedirectResponse(url=target_path, status_code=303)
     response.set_cookie(key="persona_id", value=str(user_id), path="/")
+    return response
+
+
+@app.get("/auth/google/login")
+async def google_login(request: Request):
+    if not google_auth_enabled():
+        raise HTTPException(status_code=503, detail="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.")
+    redirect_uri = f"{get_base_url()}/auth/google/callback"
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+
+@app.get("/auth/google/callback")
+async def google_callback(request: Request):
+    if not google_auth_enabled():
+        raise HTTPException(status_code=503, detail="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.")
+
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"Google sign-in failed: {exc}") from exc
+
+    userinfo = token.get("userinfo")
+    if not userinfo:
+        try:
+            userinfo = await oauth.google.userinfo(token=token)
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail=f"Google user info unavailable: {exc}") from exc
+
+    email = (userinfo.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=401, detail="Google account did not return an email address.")
+
+    user = query_one("SELECT * FROM users WHERE lower(email) = ?", (email,))
+    if not user:
+        # Keep production-safe defaults: no arbitrary account creation for unknown Google identities.
+        raise HTTPException(status_code=403, detail="This Google account is not registered for Provenance.")
+
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(key="session_user_id", value=str(user["id"]), path="/", httponly=True, samesite="lax")
+    response.delete_cookie(key="persona_id", path="/")
     return response
 
 
@@ -273,6 +341,12 @@ def admin_console(request: Request, admin: sqlite3.Row = Depends(require_role("a
 def _action_category_color(action: Optional[str]) -> str:
     if not action:
         return "system"
+    if action == "contribution_flagged":
+        return "flagged"
+    if action == "content_viewed":
+        return "viewed"
+    if action == "leak_traced":
+        return "leak"
     if action in (
         "project_posted",
         "charter_published",
@@ -287,7 +361,6 @@ def _action_category_color(action: Optional[str]) -> str:
         return "money"
     if action in (
         "contribution_submitted",
-        "contribution_flagged",
         "agent_action",
         "agent_action_approved",
         "milestone_proposed",
@@ -536,7 +609,17 @@ def _build_project_context(project_id: int, user: Optional[Any]) -> Dict[str, An
     can_see_milestones = can_view(user, project, "milestones")
 
     # Brief text only entered into context when allowed — never when locked
-    brief_text = project["confidential_brief"] if can_see_brief else None
+    brief_text = None
+    if can_see_brief and project["confidential_brief"]:
+        from app.integrity.service import protect
+        brief_text = protect(
+            viewer=user,
+            owner_id=project["sponsor_id"],
+            text=project["confidential_brief"],
+            resource="brief",
+            resource_id=project_id,
+            project_id=project_id,
+        )
 
     # Members (only fetched if allowed to see roster)
     members = []
@@ -565,6 +648,29 @@ def _build_project_context(project_id: int, user: Optional[Any]) -> Dict[str, An
     )
     ledger_count = ledger_count_row["c"] if ledger_count_row else 0
 
+    watermark_overlay = None
+    if can_see_brief and user and user["id"] != project["sponsor_id"]:
+        from datetime import datetime, timezone
+        now_str = datetime.now(timezone.utc).strftime("%d %b %Y")
+        watermark_overlay = f"Viewed by {user['name']} · {now_str}"
+
+    model_changed = False
+    prev_model = None
+    if state == "reaccept_required":
+        charters = query_all(
+            "SELECT terms_json FROM charters WHERE project_id = ? ORDER BY version DESC LIMIT 2",
+            (project_id,),
+        )
+        if len(charters) >= 2:
+            try:
+                cur_terms = json.loads(charters[0]["terms_json"])
+                prev_terms = json.loads(charters[1]["terms_json"])
+                if cur_terms.get("engagement_model") != prev_terms.get("engagement_model"):
+                    model_changed = True
+                    prev_model = prev_terms.get("engagement_model")
+            except Exception:
+                pass
+
     return {
         "project": project,
         "sponsor": sponsor,
@@ -577,6 +683,9 @@ def _build_project_context(project_id: int, user: Optional[Any]) -> Dict[str, An
         "members": members,
         "milestones": milestones,
         "ledger_count": ledger_count,
+        "watermark_overlay": watermark_overlay,
+        "model_changed": model_changed,
+        "prev_model": prev_model,
     }
 
 
@@ -681,6 +790,18 @@ async def join_post(
             },
             status_code=exc.status_code,
         )
+
+
+@app.post("/projects/{project_id}/leave")
+def project_leave_post(
+    project_id: int,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    if not user:
+        raise HTTPException(status_code=403, detail="Authentication required")
+    from app.services.projects import leave_project
+    leave_project(user, project_id)
+    return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
 
 
 def _build_charter_versions(project_id: int) -> list:
@@ -872,7 +993,16 @@ def api_brief(
         raise HTTPException(status_code=404, detail="Project not found")
     if not can_view(user, project, "brief"):
         raise HTTPException(status_code=403, detail="Access denied to confidential brief")
-    return {"project_id": project_id, "brief": project["confidential_brief"]}
+    from app.integrity.service import protect
+    brief_text = protect(
+        viewer=user,
+        owner_id=project["sponsor_id"],
+        text=project["confidential_brief"],
+        resource="brief",
+        resource_id=project_id,
+        project_id=project_id,
+    )
+    return {"project_id": project_id, "brief": brief_text}
 
 
 @app.post("/api/projects/{project_id}/join")
@@ -920,6 +1050,18 @@ def api_membership(
     return {"state": state}
 
 
+@app.post("/api/projects/{project_id}/leave")
+def api_leave_project(
+    project_id: int,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    if not user:
+        raise HTTPException(status_code=403, detail="Authentication required")
+    from app.services.projects import leave_project
+    res = leave_project(user, project_id)
+    return JSONResponse(res, status_code=200)
+
+
 # ─────────────────────────────────────────────
 # Ledger JSON API routes (S2)
 # ─────────────────────────────────────────────
@@ -962,6 +1104,16 @@ def api_ledger_restore():
         return {"status": "restored", "restored_count": count}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/demo/reset")
+def api_demo_reset():
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+    import app.demo as demo
+    res = demo.reset()
+    return JSONResponse(res, status_code=200)
 
 
 # ─────────────────────────────────────────────
@@ -1108,6 +1260,86 @@ async def api_review_contribution(
     return JSONResponse(res, status_code=200)
 
 
+@app.get("/api/contributions/{contribution_id}/integrity")
+def api_contribution_integrity(
+    contribution_id: int,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    from app.integrity.service import integrity_report
+    res = integrity_report(user, contribution_id)
+    return JSONResponse(res, status_code=200)
+
+
+@app.post("/api/integrity/check")
+async def api_integrity_check(
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+    text: str = Form(""),
+    ai_declaration: str = Form("human"),
+    milestone_id: Optional[int] = Form(None),
+):
+    text_val = text
+    ai_decl_val = ai_declaration
+    milestone_id_val = milestone_id
+
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                text_val = body.get("text", text_val)
+                ai_decl_val = body.get("ai_declaration", ai_decl_val)
+                milestone_id_val = body.get("milestone_id", milestone_id_val)
+        except Exception:
+            pass
+
+    from app.integrity.service import preview_check
+    res = preview_check(user, text_val, ai_decl_val, milestone_id_val)
+    return JSONResponse(res, status_code=200)
+
+
+@app.post("/api/integrity/authorship")
+async def api_integrity_authorship(
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+    text: str = Form(""),
+):
+    text_val = text
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                text_val = body.get("text", text_val)
+        except Exception:
+            pass
+
+    from app.integrity.service import authorship_lookup
+    res = authorship_lookup(user, text_val)
+    return JSONResponse(res, status_code=200)
+
+
+@app.post("/api/integrity/trace")
+async def api_integrity_trace(
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+    text: str = Form(""),
+):
+    text_val = text
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                text_val = body.get("text", text_val)
+        except Exception:
+            pass
+
+    from app.integrity.service import trace
+    res = trace(user, text_val)
+    return JSONResponse(res, status_code=200)
+
+
 @app.post("/api/milestones/{milestone_id}/submit")
 def api_submit_milestone(
     milestone_id: int,
@@ -1126,6 +1358,87 @@ def api_accept_milestone(
     from app.services.milestones import accept_milestone
     res = accept_milestone(user, milestone_id)
     return JSONResponse(res, status_code=200)
+
+
+@app.post("/api/milestones/{milestone_id}/simulate-days")
+async def api_simulate_days(
+    milestone_id: int,
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+    days: Optional[int] = Form(None),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can simulate days")
+
+    sim_days = days
+    if sim_days is None:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                sim_days = body.get("days")
+        except Exception:
+            pass
+    if sim_days is None:
+        try:
+            form = await request.form()
+            if "days" in form:
+                sim_days = int(form["days"])
+        except Exception:
+            pass
+    if sim_days is None and "days" in request.query_params:
+        try:
+            sim_days = int(request.query_params["days"])
+        except Exception:
+            pass
+    if sim_days is None:
+        sim_days = 7
+    else:
+        sim_days = int(sim_days)
+
+    from datetime import datetime, timedelta, timezone
+    from app.services.milestones import auto_accept_overdue
+
+    milestone = query_one("SELECT * FROM milestones WHERE id = ?", (milestone_id,))
+    if not milestone:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    if milestone["status"] != "submitted":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Milestone cannot be auto-accepted in status '{milestone['status']}' (must be 'submitted')",
+        )
+
+    # Look up submission timestamp from ledger
+    sub_entries = query_all(
+        """SELECT timestamp, payload_json FROM ledger_entries
+           WHERE action = 'milestone_submitted'
+           ORDER BY id DESC"""
+    )
+    sub_entry = None
+    for se in sub_entries:
+        try:
+            p = json.loads(se["payload_json"])
+            if p.get("milestone_id") == milestone_id:
+                sub_entry = se
+                break
+        except Exception:
+            continue
+
+    if not sub_entry:
+        raise HTTPException(status_code=409, detail="No submission timestamp found in ledger")
+
+    ts_str = sub_entry["timestamp"]
+    if ts_str.endswith("Z"):
+        ts_str = ts_str[:-1] + "+00:00"
+    submission_time = datetime.fromisoformat(ts_str)
+    simulated_now = submission_time + timedelta(days=sim_days)
+
+    result = auto_accept_overdue(milestone_id, now=simulated_now)
+    return JSONResponse(result, status_code=200)
+
 
 
 @app.get("/api/milestones/{milestone_id}/receipt")
@@ -1217,14 +1530,32 @@ def _render_milestones_page(
     u_membership = membership_state(project_id, user["id"]) if user else "none"
 
     milestones_data = []
+    has_non_owner_view = False
     if can_see_milestones:
         from app.services.milestones import list_milestones
         from app.services.contributions import list_contributions
+        from app.integrity.service import integrity_report
         raw_ms = list_milestones(user, project_id)
         for ms in raw_ms:
             ms_dict = dict(ms)
-            ms_dict["contributions"] = list_contributions(user, ms["id"])
+            contribs = list_contributions(user, ms["id"])
+            ms_dict["has_flagged"] = any(c.get("review_status") == "flagged" for c in contribs)
+            for c in contribs:
+                if user and c.get("author_id") != user["id"]:
+                    has_non_owner_view = True
+                if c.get("review_status") == "flagged":
+                    try:
+                        c["integrity_report"] = integrity_report(user, c["id"])
+                    except Exception:
+                        c["integrity_report"] = None
+            ms_dict["contributions"] = contribs
             milestones_data.append(ms_dict)
+
+    watermark_overlay = None
+    if can_see_milestones and user and has_non_owner_view:
+        from datetime import datetime, timezone
+        now_str = datetime.now(timezone.utc).strftime("%d %b %Y")
+        watermark_overlay = f"Viewed by {user['name']} · {now_str}"
 
     return templates.TemplateResponse(
         request,
@@ -1241,6 +1572,7 @@ def _render_milestones_page(
             "is_sponsor": bool(user and user["id"] == project["sponsor_id"]),
             "is_expert": bool(user and user["role"] == "expert" and u_membership == "member"),
             "is_member": bool(user and u_membership == "member"),
+            "watermark_overlay": watermark_overlay,
             "error": error,
         },
         status_code=status_code,
@@ -1385,6 +1717,58 @@ def milestone_accept_post(
     try:
         accept_milestone(user, milestone_id)
         return RedirectResponse(url=f"/milestones/{milestone_id}/receipt", status_code=303)
+    except HTTPException as exc:
+        return _render_milestones_page(request, project_id, user, error=exc.detail, status_code=exc.status_code)
+
+
+@app.post("/milestones/{milestone_id}/simulate-days")
+async def milestone_simulate_days_post(
+    milestone_id: int,
+    request: Request,
+    days: int = Form(7),
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can simulate days")
+
+    ms = query_one("SELECT project_id FROM milestones WHERE id = ?", (milestone_id,))
+    project_id = ms["project_id"] if ms else None
+    if not project_id:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+
+    from datetime import datetime, timedelta
+    from app.services.milestones import auto_accept_overdue
+
+    sub_entries = query_all(
+        """SELECT timestamp, payload_json FROM ledger_entries
+           WHERE action = 'milestone_submitted'
+           ORDER BY id DESC"""
+    )
+    sub_entry = None
+    for se in sub_entries:
+        try:
+            p = json.loads(se["payload_json"])
+            if p.get("milestone_id") == milestone_id:
+                sub_entry = se
+                break
+        except Exception:
+            continue
+
+    if not sub_entry:
+        return _render_milestones_page(request, project_id, user, error="No submission timestamp found in ledger", status_code=409)
+
+    ts_str = sub_entry["timestamp"]
+    if ts_str.endswith("Z"):
+        ts_str = ts_str[:-1] + "+00:00"
+    submission_time = datetime.fromisoformat(ts_str)
+    simulated_now = submission_time + timedelta(days=days)
+
+    try:
+        auto_accept_overdue(milestone_id, now=simulated_now)
+        return RedirectResponse(url=f"/projects/{project_id}/milestones", status_code=303)
     except HTTPException as exc:
         return _render_milestones_page(request, project_id, user, error=exc.detail, status_code=exc.status_code)
 
@@ -2015,3 +2399,350 @@ def ui_firewall_get(
             "calls_display": calls_display,
         },
     )
+
+
+# ─────────────────────────────────────────────
+# Integrity Centre UI Routes (Module S5c)
+# ─────────────────────────────────────────────
+
+@app.get("/integrity")
+def integrity_page(
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    can_see = user is not None
+    active_tab = "trace" if (user and user["role"] in ("sponsor", "admin")) else "authorship"
+    return templates.TemplateResponse(
+        request,
+        "integrity.html",
+        {
+            "user": user,
+            "all_users": all_users,
+            "can_see": can_see,
+            "trace_result": None,
+            "authorship_result": None,
+            "preview_result": None,
+            "pasted_trace_text": "",
+            "pasted_auth_text": "",
+            "pasted_check_text": "",
+            "ai_declaration": "human",
+            "active_tab": active_tab,
+            "error": None,
+        },
+        status_code=200,
+    )
+
+
+@app.post("/integrity/trace")
+def integrity_trace_post(
+    request: Request,
+    text: str = Form(""),
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    if not user:
+        return templates.TemplateResponse(
+            request,
+            "integrity.html",
+            {
+                "user": user,
+                "all_users": all_users,
+                "can_see": False,
+                "trace_result": None,
+                "authorship_result": None,
+                "preview_result": None,
+                "pasted_trace_text": text,
+                "pasted_auth_text": "",
+                "pasted_check_text": "",
+                "ai_declaration": "human",
+                "active_tab": "trace",
+                "error": "Sign in required to trace leaks",
+            },
+            status_code=200,
+        )
+
+    if user["role"] not in ("sponsor", "admin"):
+        return templates.TemplateResponse(
+            request,
+            "integrity.html",
+            {
+                "user": user,
+                "all_users": all_users,
+                "can_see": True,
+                "trace_result": None,
+                "authorship_result": None,
+                "preview_result": None,
+                "pasted_trace_text": text,
+                "pasted_auth_text": "",
+                "pasted_check_text": "",
+                "ai_declaration": "human",
+                "active_tab": "trace",
+                "error": "Forbidden: only sponsor or admin may trace leaks",
+            },
+            status_code=403,
+        )
+
+    from app.integrity.service import trace
+    try:
+        res = trace(user, text)
+        return templates.TemplateResponse(
+            request,
+            "integrity.html",
+            {
+                "user": user,
+                "all_users": all_users,
+                "can_see": True,
+                "trace_result": res,
+                "pasted_trace_text": text,
+                "authorship_result": None,
+                "preview_result": None,
+                "pasted_auth_text": "",
+                "pasted_check_text": "",
+                "ai_declaration": "human",
+                "active_tab": "trace",
+                "error": None,
+            },
+            status_code=200,
+        )
+    except HTTPException as exc:
+        return templates.TemplateResponse(
+            request,
+            "integrity.html",
+            {
+                "user": user,
+                "all_users": all_users,
+                "can_see": True,
+                "trace_result": None,
+                "pasted_trace_text": text,
+                "authorship_result": None,
+                "preview_result": None,
+                "pasted_auth_text": "",
+                "pasted_check_text": "",
+                "ai_declaration": "human",
+                "active_tab": "trace",
+                "error": exc.detail,
+            },
+            status_code=exc.status_code,
+        )
+
+
+@app.post("/integrity/authorship")
+def integrity_authorship_post(
+    request: Request,
+    text: str = Form(""),
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    if not user:
+        return templates.TemplateResponse(
+            request,
+            "integrity.html",
+            {
+                "user": user,
+                "all_users": all_users,
+                "can_see": False,
+                "trace_result": None,
+                "authorship_result": None,
+                "preview_result": None,
+                "pasted_trace_text": "",
+                "pasted_auth_text": text,
+                "pasted_check_text": "",
+                "ai_declaration": "human",
+                "active_tab": "authorship",
+                "error": "Sign in required",
+            },
+            status_code=200,
+        )
+
+    from app.integrity.service import authorship_lookup
+    res = authorship_lookup(user, text)
+    return templates.TemplateResponse(
+        request,
+        "integrity.html",
+        {
+            "user": user,
+            "all_users": all_users,
+            "can_see": True,
+            "authorship_result": res,
+            "pasted_auth_text": text,
+            "trace_result": None,
+            "preview_result": None,
+            "pasted_trace_text": "",
+            "pasted_check_text": "",
+            "ai_declaration": "human",
+            "active_tab": "authorship",
+            "error": None,
+        },
+        status_code=200,
+    )
+
+
+@app.post("/integrity/check")
+def integrity_check_post(
+    request: Request,
+    text: str = Form(""),
+    ai_declaration: str = Form("human"),
+    milestone_id: Optional[int] = Form(None),
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    if not user:
+        return templates.TemplateResponse(
+            request,
+            "integrity.html",
+            {
+                "user": user,
+                "all_users": all_users,
+                "can_see": False,
+                "trace_result": None,
+                "authorship_result": None,
+                "preview_result": None,
+                "pasted_trace_text": "",
+                "pasted_auth_text": "",
+                "pasted_check_text": text,
+                "ai_declaration": ai_declaration,
+                "active_tab": "preview",
+                "error": "Sign in required",
+            },
+            status_code=200,
+        )
+
+    from app.integrity.service import preview_check
+    res = preview_check(user, text, ai_declaration, milestone_id)
+    return templates.TemplateResponse(
+        request,
+        "integrity.html",
+        {
+            "user": user,
+            "all_users": all_users,
+            "can_see": True,
+            "preview_result": res,
+            "pasted_check_text": text,
+            "ai_declaration": ai_declaration,
+            "trace_result": None,
+            "authorship_result": None,
+            "pasted_trace_text": "",
+            "pasted_auth_text": "",
+            "active_tab": "preview",
+            "error": None,
+        },
+        status_code=200,
+    )
+
+
+# ─────────────────────────────────────────────
+# Story Mode Routes (Module S6b)
+# ─────────────────────────────────────────────
+
+@app.get("/story")
+def story_page(
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+
+    import app.story as story_mod
+    all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    status_info = story_mod.status()
+
+    return templates.TemplateResponse(
+        request,
+        "story.html",
+        {
+            "user": user,
+            "all_users": all_users,
+            "story_status": status_info,
+            "steps": status_info["steps"],
+            "ledger_broken": status_info["ledger_broken"],
+        },
+        status_code=200,
+    )
+
+
+@app.post("/story/run/{key}")
+def story_run_post(
+    key: str,
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+
+    import app.story as story_mod
+    story_mod.run(key)
+    return RedirectResponse(url="/story", status_code=303)
+
+
+@app.post("/api/story/run/{key}")
+def api_story_run(
+    key: str,
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+
+    import app.story as story_mod
+    res = story_mod.run(key)
+    return JSONResponse(res, status_code=200)
+
+
+@app.post("/api/story/twist/{case}")
+def api_story_twist(
+    case: str,
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+
+    import app.story as story_mod
+    res = story_mod.run_twist(case)
+    return JSONResponse(res, status_code=200)
+
+
+@app.get("/api/story/status")
+def api_story_status(
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+
+    import app.story as story_mod
+    res = story_mod.status()
+    return JSONResponse(res, status_code=200)
+
+
+@app.post("/api/story/restore")
+def api_story_restore(
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+
+    count = ledger.restore_demo()
+    return JSONResponse({"status": "restored", "restored_count": count, "message": "Ledger chain restored."}, status_code=200)
+
+
+@app.post("/api/story/reset")
+def api_story_reset(
+    request: Request,
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    import app.ledger as ledger
+    if not ledger.demo_mode():
+        raise HTTPException(status_code=403, detail="Demo mode disabled")
+
+    import app.demo as demo
+    res = demo.reset()
+    return JSONResponse(res, status_code=200)

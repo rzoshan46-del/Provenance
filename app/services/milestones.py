@@ -343,6 +343,16 @@ def submit_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
         )
 
     # 3. Approved contributions check
+    flagged_row = query_one(
+        "SELECT COUNT(*) AS c FROM contributions WHERE milestone_id = ? AND review_status = 'flagged'",
+        (milestone_id,),
+    )
+    if flagged_row and flagged_row["c"] > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="flagged contributions must be resolved first",
+        )
+
     approved_count_row = query_one(
         "SELECT COUNT(*) AS c FROM contributions WHERE milestone_id = ? AND review_status = 'approved'",
         (milestone_id,),
@@ -385,15 +395,144 @@ def submit_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
     return {"status": "submitted", "milestone_id": milestone_id}
 
 
+def finalize_acceptance(
+    milestone_id: int,
+    actor: Any,
+    auto: bool = False,
+) -> Dict[str, Any]:
+    """Single code path that releases a milestone: payouts, credentials, ledger.
+
+    actor=None means the system (auto-accept); ledger entries will have actor_type='system'.
+    """
+    milestone = query_one("SELECT * FROM milestones WHERE id = ?", (milestone_id,))
+    if not milestone:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+
+    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    is_funded = project["engagement_model"] in ("funded", "stipend")
+
+    from app.services import payouts
+
+    # Determine actor_id and actor_type for ledger entries
+    if actor is None:
+        actor_id_for_ledger = None
+        actor_type_for_ledger = "system"
+    elif isinstance(actor, (dict, sqlite3.Row)):
+        actor_id_for_ledger = actor["id"]
+        actor_type_for_ledger = "human"
+    else:
+        actor_id_for_ledger = None
+        actor_type_for_ledger = "system"
+
+    if is_funded:
+        escrow = query_one(
+            "SELECT * FROM escrows WHERE milestone_id = ?", (milestone_id,)
+        )
+        if not escrow or escrow["state"] != "submitted":
+            raise HTTPException(
+                status_code=409,
+                detail="Escrow must be in 'submitted' state for milestone acceptance",
+            )
+        payouts.release_milestone(actor, milestone, project, escrow, auto=auto)
+    else:
+        # Non-monetary: no payouts, no escrow — write milestone_accepted here
+        payload: Dict[str, Any] = {"milestone_id": milestone_id}
+        if auto:
+            payload["auto"] = True
+            payload["reason"] = "acceptance window elapsed"
+        ledger.append(
+            action="milestone_accepted",
+            actor_id=actor_id_for_ledger,
+            actor_type=actor_type_for_ledger,
+            human_owner_id=None,
+            project_id=project["id"],
+            payload=payload,
+        )
+
+    # Issue credentials to ALL authors with approved contributions, regardless of membership
+    payouts.issue_credentials(actor, milestone, project)
+
+    # Update milestone status to 'accepted'
+    execute(
+        "UPDATE milestones SET status = 'accepted' WHERE id = ?",
+        (milestone_id,),
+    )
+
+    return {"status": "accepted", "milestone_id": milestone_id}
+
+
+def auto_accept_overdue(milestone_id: int, now: Any = None) -> Dict[str, Any]:
+    """Auto-accept a milestone when the acceptance window has elapsed.
+
+    DEMO TOOL: simulates time passing. Production would run this as a scheduled job.
+
+    Raises 409 if the acceptance window is still open.
+    Raises 409 if the milestone is not in 'submitted' state.
+    """
+    from datetime import timedelta
+
+    milestone = query_one("SELECT * FROM milestones WHERE id = ?", (milestone_id,))
+    if not milestone:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+
+    if milestone["status"] != "submitted":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Milestone is not submitted (status: {milestone['status']})",
+        )
+
+    # Find the latest milestone_submitted ledger entry for this milestone
+    sub_entries = query_all(
+        """SELECT timestamp, payload_json FROM ledger_entries
+           WHERE action = 'milestone_submitted'
+           ORDER BY id DESC"""
+    )
+    sub_entry = None
+    for se in sub_entries:
+        try:
+            p = json.loads(se["payload_json"])
+            if p.get("milestone_id") == milestone_id:
+                sub_entry = se
+                break
+        except Exception:
+            continue
+
+    if not sub_entry:
+        raise HTTPException(
+            status_code=409, detail="No submission timestamp found in ledger"
+        )
+
+    # Parse ISO-8601 timestamp (replace trailing Z with +00:00)
+    ts_str = sub_entry["timestamp"]
+    if ts_str.endswith("Z"):
+        ts_str = ts_str[:-1] + "+00:00"
+    submission_time = datetime.fromisoformat(ts_str)
+
+    # Resolve "now"
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    window_days = milestone["acceptance_window_days"] or 7
+    deadline = submission_time + timedelta(days=window_days)
+
+    if now < deadline:
+        raise HTTPException(
+            status_code=409,
+            detail=f"acceptance window still open (closes in {(deadline - now).days} day(s))",
+        )
+
+    return finalize_acceptance(milestone_id, actor=None, auto=True)
+
+
 def accept_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
-    """Accept a submitted milestone, trigger payouts (if funded), and issue credentials.
+    """Accept a submitted milestone (sponsor-facing thin wrapper around finalize_acceptance).
 
     Rules:
     - Only the owning sponsor can accept milestones (403).
     - Milestone status must be 'submitted' (409).
-    - Funded project: calls payouts.release_milestone (split, payouts, escrow accepted/released).
-    - Non-funded project: sets milestone status to 'accepted', logs milestone_accepted (no escrow, no payouts).
-    - All projects: issues certificate credentials to all approved contributors via payouts.issue_credentials.
     """
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -419,39 +558,5 @@ def accept_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
             detail=f"Milestone cannot be accepted in status '{milestone['status']}' (must be 'submitted')",
         )
 
-    is_funded = project["engagement_model"] in ("funded", "stipend")
-
-    from app.services import payouts
-
-    if is_funded:
-        escrow = query_one(
-            "SELECT * FROM escrows WHERE milestone_id = ?", (milestone_id,)
-        )
-        if not escrow or escrow["state"] != "submitted":
-            raise HTTPException(
-                status_code=409,
-                detail="Escrow must be in 'submitted' state for milestone acceptance",
-            )
-        payouts.release_milestone(user, milestone, project, escrow)
-    else:
-        # Non-monetary: no payouts, no escrow
-        ledger.append(
-            action="milestone_accepted",
-            actor_id=user["id"],
-            actor_type="human",
-            human_owner_id=user["id"],
-            project_id=project["id"],
-            payload={"milestone_id": milestone_id},
-        )
-
-    # Issue credentials for all approved contributors across all engagement models
-    payouts.issue_credentials(user, milestone, project)
-
-    # Update milestone status to 'accepted'
-    execute(
-        "UPDATE milestones SET status = 'accepted' WHERE id = ?",
-        (milestone_id,),
-    )
-
-    return {"status": "accepted", "milestone_id": milestone_id}
+    return finalize_acceptance(milestone_id, actor=user, auto=False)
 

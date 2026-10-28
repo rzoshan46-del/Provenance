@@ -24,15 +24,20 @@ def release_milestone(
     milestone: sqlite3.Row,
     project: sqlite3.Row,
     escrow: sqlite3.Row,
+    auto: bool = False,
 ) -> Dict[str, Any]:
     """Execute split engine, write verifiable payouts, transition escrow, and log ledger entries.
 
     MOCKED: production would use one atomic transaction and a payment gateway.
+
+    Payout and credential participants = everyone with an approved contribution on the milestone,
+    whether or not they are still members (credit is kept even after leaving — SPEC §21).
     """
     milestone_id = milestone["id"]
     amount_inr = milestone["amount_inr"]
 
     # 1. Gather approved contributions for students and experts
+    #    Include ex-members: do NOT filter by current membership state
     approved_contribs = query_all(
         """
         SELECT c.*, u.role
@@ -202,16 +207,26 @@ def release_milestone(
     ).hexdigest()
 
     # 6. Escrow Transitions: submitted -> accepted -> released
-    escrow_transition(escrow["id"], "accepted", user)
-    escrow_transition(escrow["id"], "released", user)
+    #    actor=None if system auto-accept
+    escrow_actor = None if auto else user
+    escrow_transition(escrow["id"], "accepted", escrow_actor)
+    escrow_transition(escrow["id"], "released", escrow_actor)
 
     # 7. Ledger: payout_released and milestone_accepted
-    actor_id = user["id"]
+    if auto:
+        actor_id = None
+        actor_type = "system"
+        human_owner_id = None
+    else:
+        actor_id = user["id"] if user and isinstance(user, (dict, sqlite3.Row)) else None
+        actor_type = "human"
+        human_owner_id = actor_id
+
     ledger.append(
         action="payout_released",
         actor_id=actor_id,
-        actor_type="human",
-        human_owner_id=actor_id,
+        actor_type=actor_type,
+        human_owner_id=human_owner_id,
         project_id=project["id"],
         payload={
             "amount_inr": amount_inr,
@@ -223,13 +238,18 @@ def release_milestone(
         },
     )
 
+    milestone_accepted_payload: Dict[str, Any] = {"milestone_id": milestone_id}
+    if auto:
+        milestone_accepted_payload["auto"] = True
+        milestone_accepted_payload["reason"] = "acceptance window elapsed"
+
     ledger.append(
         action="milestone_accepted",
         actor_id=actor_id,
-        actor_type="human",
-        human_owner_id=actor_id,
+        actor_type=actor_type,
+        human_owner_id=human_owner_id,
         project_id=project["id"],
-        payload={"milestone_id": milestone_id},
+        payload=milestone_accepted_payload,
     )
 
     return {
@@ -273,7 +293,19 @@ def issue_credentials(
     all_uids = sorted(list(set([r["author_id"] for r in author_rows] + [r["reviewer_id"] for r in reviewer_rows])))
 
     issued = []
-    actor_id = user["id"]
+    # Support actor=None (system auto-accept path)
+    if user is None:
+        actor_id = None
+        actor_type = "system"
+        human_owner_id = None
+    elif isinstance(user, (dict, sqlite3.Row)):
+        actor_id = user["id"]
+        actor_type = "human"
+        human_owner_id = actor_id
+    else:
+        actor_id = None
+        actor_type = "system"
+        human_owner_id = None
 
     for uid in all_uids:
         issued_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
@@ -298,8 +330,8 @@ def issue_credentials(
         ledger.append(
             action="credential_issued",
             actor_id=actor_id,
-            actor_type="human",
-            human_owner_id=actor_id,
+            actor_type=actor_type,
+            human_owner_id=human_owner_id,
             project_id=project_id,
             payload={
                 "credential_id": cred_id,
@@ -407,6 +439,8 @@ def build_receipt(milestone_id: int) -> Dict[str, Any]:
 
     receipt_verified = all_lines_verified and total_check and bool(lines)
 
+    from app.integrity.provenance import ai_breakdown
+
     return {
         "milestone_id": milestone_id,
         "project_id": milestone["project_id"],
@@ -420,6 +454,7 @@ def build_receipt(milestone_id: int) -> Dict[str, Any]:
         "total_check": total_check,
         "receipt_hash": milestone_receipt_hash,
         "receipt_verified": receipt_verified,
+        "ai_breakdown": ai_breakdown(milestone_id),
     }
 
 
@@ -537,10 +572,13 @@ def credit_statement(milestone_id: int) -> Dict[str, Any]:
                 "credentials": [dict(cr) for cr in creds],
             })
 
+    from app.integrity.provenance import ai_breakdown
+
     return {
         "milestone_id": milestone_id,
         "project_id": project["id"],
         "engagement_model": project["engagement_model"],
         "status": "unpaid",
         "contributors": contributors,
+        "ai_breakdown": ai_breakdown(milestone_id),
     }

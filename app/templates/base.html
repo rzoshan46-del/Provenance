@@ -15,10 +15,14 @@
         <nav class="topbar-nav">
             <a href="/" class="nav-link">Home</a>
             <a href="/projects" class="nav-link">Projects</a>
+            <a href="/integrity" class="nav-link">Integrity</a>
             <a href="/ledger" class="nav-link">Ledger</a>
             <a href="/credentials" class="nav-link">Credentials</a>
             {% if user and user.role == 'admin' %}
             <a href="/admin" class="nav-link">Admin</a>
+            {% endif %}
+            {% if demo_mode() %}
+            <a href="/story" class="nav-link" style="color:var(--pending)">Story</a>
             {% endif %}
         </nav>
 
@@ -44,6 +48,14 @@
             {% endif %}
         </div>
     </header>
+
+    {% if watermark_overlay %}
+    <div class="watermark-overlay" aria-hidden="true">
+        {% for _ in range(24) %}
+        <span class="watermark-overlay-item">{{ watermark_overlay }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <main class="container">
         {% block content %}{% endblock %}
