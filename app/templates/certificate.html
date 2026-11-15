@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate {{ cert.short_id }} — {{ cert.holder_name }}</title>
+    <style>
+        @page { size: A4 landscape; margin: 0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { background: #e9ecef; }
+        body { font-family: Georgia, "Times New Roman", serif; color: #1c2430; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .toolbar { max-width: 297mm; margin: 12px auto; display: flex; gap: 10px; align-items: center; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+        .toolbar button, .toolbar a { background: #0B0D10; color: #fff; border: 0; padding: 9px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; text-decoration: none; }
+        .toolbar a.alt { background: #fff; color: #0B0D10; border: 1px solid #c8cdd3; }
+        .page { width: 297mm; height: 210mm; margin: 0 auto 24px; background: #fff; position: relative; padding: 12mm; overflow: hidden; }
+        .frame { height: 100%; border: 2px solid #0B0D10; padding: 3mm; }
+        .frame-inner { height: 100%; border: 1px solid #9aa4b1; padding: 11mm 16mm; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+        .brand { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-weight: 800; letter-spacing: -0.02em; font-size: 15pt; }
+        .brand small { display: block; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 8pt; color: #5b6673; margin-top: 2px; }
+        .title { text-align: center; }
+        .title .kick { letter-spacing: .28em; text-transform: uppercase; font-size: 10pt; color: #5b6673; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+        .title h1 { font-size: 30pt; font-weight: 400; margin: 3mm 0 1mm; }
+        .name { font-size: 34pt; text-align: center; border-bottom: 1px solid #9aa4b1; padding: 2mm 8mm 3mm; margin: 0 auto; max-width: 200mm; }
+        .body { text-align: center; font-size: 12.5pt; line-height: 1.5; max-width: 205mm; margin: 0 auto; }
+        .body strong { font-weight: 700; }
+        .project { font-size: 17pt; margin: 1.5mm 0; }
+        .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 10mm; }
+        .meta { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 9pt; color: #3b4652; line-height: 1.55; }
+        .meta b { color: #0B0D10; }
+        .mono { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+        .qr { text-align: center; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 8pt; color: #3b4652; width: 38mm; flex: none; }
+        .qr img { width: 38mm; height: 38mm; display: block; border: 1px solid #c8cdd3; }
+        .revoked { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 80pt; font-weight: 800; color: rgba(220, 38, 38, .25); transform: rotate(-18deg); pointer-events: none; }
+        @media print {
+            html, body { background: #fff; }
+            .toolbar { display: none; }
+            .page { margin: 0; }
+        }
+        @media screen and (max-width: 1100px) { .page { zoom: .55; } }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button type="button" onclick="window.print()">Print / Save as PDF</button>
+        <a class="alt" href="{{ cert.verify_url }}">Back to verification page</a>
+        <span style="font-size:13px;color:#5b6673">In the print dialog choose “Save as PDF” as the destination.</span>
+    </div>
+
+    <div class="page">
+        <div class="frame"><div class="frame-inner">
+            {% if cert.status == 'revoked' %}<div class="revoked">REVOKED</div>{% endif %}
+
+            <div class="brand">⬡ Provenance<small>Verified contribution record</small></div>
+
+            <div class="title">
+                <div class="kick">Certificate of verified contribution</div>
+                <h1>This certifies that</h1>
+            </div>
+
+            <div class="name">{{ cert.holder_name }}</div>
+
+            <div class="body">
+                <div>made a verified contribution as <strong>{{ cert.role_label | lower }}</strong> on the project</div>
+                <div class="project"><strong>{{ cert.project_title }}</strong></div>
+                <div>
+                    sponsored by {{ cert.sponsor_name }}
+                    {% if cert.contributions_approved %}· {{ cert.contributions_approved }} approved contribution{{ '' if cert.contributions_approved == 1 else 's' }}{% endif %}
+                    {% if cert.reviews_approved %}· {{ cert.reviews_approved }} approved expert review{{ '' if cert.reviews_approved == 1 else 's' }}{% endif %}
+                </div>
+                {% if cert.contributions_approved %}
+                <div style="font-size:10pt;color:#3b4652;margin-top:1.5mm">
+                    Authorship declared:
+                    {% for d in cert.declarations %}{% if d.count %}{{ d.label }} {{ d.count }}{% if not loop.last %} · {% endif %}{% endif %}{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="row">
+                <div class="meta">
+                    <div><b>Issued:</b> {{ cert.issued_pretty }}</div>
+                    <div><b>Certificate ID:</b> <span class="mono">{{ cert.short_id }}</span></div>
+                    {% if cert.ledger %}<div><b>Ledger entry:</b> #{{ cert.ledger.entry_id }}</div>{% endif %}
+                    <div><b>Verify at:</b> <span class="mono">{{ cert.verify_url }}</span></div>
+                    <div style="margin-top:1mm;color:#6b7683">Scan the code or open the link to check this certificate against the tamper-evident ledger.</div>
+                </div>
+                <div class="qr">
+                    <img src="{{ cert.qr_url }}" alt="QR code to verify this certificate">
+                    <div style="margin-top:1.5mm">Scan to verify</div>
+                </div>
+            </div>
+        </div></div>
+    </div>
+
+    <script>
+        if (window.location.search.indexOf('print=1') !== -1) {
+            window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });
+        }
+    </script>
+</body>
+</html>

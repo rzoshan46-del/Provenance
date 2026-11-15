@@ -91,6 +91,9 @@ import app.credits as _credits_mod
 import app.ledger as _ledger_mod
 templates.env.globals["user_credits"] = _credits_mod.total  # user_credits(user_id) → int
 templates.env.globals["demo_mode"] = _ledger_mod.demo_mode
+# Public certificates: /verify, /certificate, QR code (app/certificates.py)
+from app.certificates import build_router as _build_cert_router
+app.include_router(_build_cert_router(templates))
 
 
 @app.exception_handler(StarletteHTTPException)

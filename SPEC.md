@@ -1,8 +1,8 @@
-# SPEC.md: Provenance (Collaborative Research Ecosystem), Gardenia 2K26
+# SPEC.md: Provenance (Collaborative Research Ecosystem)
 
 ## 1\. Situation
 
-* Hackathon: Gardenia 2K26 (Garden City University), 5-6 Oct 2026. Problem: "Collaborative Research Ecosystem". Passed Round 1 (pitch) and Round 2 (paper PoC). Round 3 is the live demo.
+* Hackathon: hackFront India (Where U Elevate), Theme: Open Source and Innovation. Round 1 (prototype) passed; on-site round at IIIT Delhi. Origin: the prototype was first built for another hackathon in October 2026 and is being completed for hackFront.
 * Round 3 scoring (100): Technical implementation 30, Prototype functionality and performance 25, Effectiveness in solving the problem 20, User experience 10, Scalability and real-world applicability 5, Presentation and demo 5, Teamwork and Q\&A 5.
 * Build time is about 6 hours. One primary builder (Python intermediate) using Google Antigravity on a free tier with limited quota. Three teammates handle docs, QA and video.
 * Rules: free or local models are fine. No real money or real personal data; payments, KYC and agreements are SIMULATED with synthetic users. All code is written after 8:00 AM on 5 Oct. Libraries and templates are fine. Commit history is checked. Every AI coding tool must be declared in the README. Wherever something is mocked, say what production would use.

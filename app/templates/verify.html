@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if cert %}
+    <title>{{ cert.holder_name }} · Verified contribution certificate — Provenance</title>
+    <meta name="description" content="{{ cert.holder_name }} contributed to “{{ cert.project_title }}”. Certificate {{ cert.short_id }} is recorded in the Provenance tamper-evident ledger.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Provenance">
+    <meta property="og:title" content="{{ cert.holder_name }} · Verified contribution certificate">
+    <meta property="og:description" content="{{ cert.role_label }} on “{{ cert.project_title }}”. Certificate {{ cert.short_id }}, recorded in the Provenance ledger.">
+    <meta property="og:url" content="{{ cert.verify_url }}">
+    <meta name="twitter:card" content="summary">
+    {% else %}
+    <title>Certificate not found — Provenance</title>
+    {% endif %}
+    <link rel="stylesheet" href="/static/app.css">
+    <style>
+        body { align-items: center; }
+        .vwrap { width: 100%; max-width: 880px; padding: 1.5rem 1rem 3rem; }
+        .vbrand { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; }
+        .vbrand a.logo { font-weight:800; font-size:1.1rem; color:var(--text); letter-spacing:-0.02em; }
+        .banner { border-radius:var(--radius-lg); padding:1rem 1.25rem; margin-bottom:1.25rem; display:flex; gap:.9rem; align-items:center; border:1px solid; }
+        .banner .icon { font-size:1.6rem; line-height:1; }
+        .banner h1 { font-size:1.1rem; margin-bottom:.15rem; }
+        .banner p { font-size:.85rem; color:var(--muted); }
+        .banner-valid { background:rgba(198,255,61,.07); border-color:rgba(198,255,61,.4); }
+        .banner-valid h1 { color:var(--verified); }
+        .banner-revoked { background:rgba(255,77,79,.08); border-color:rgba(255,77,79,.5); }
+        .banner-revoked h1 { color:var(--broken); }
+        .banner-unverified { background:rgba(255,176,32,.08); border-color:rgba(255,176,32,.5); }
+        .banner-unverified h1 { color:var(--pending); }
+        .cert-grid { display:grid; grid-template-columns: 1fr 220px; gap:1.5rem; align-items:start; }
+        @media (max-width: 720px) { .cert-grid { grid-template-columns: 1fr; } }
+        .holder { font-size:2rem; line-height:1.15; margin:.35rem 0 .75rem; }
+        .kicker { font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+        .project { font-size:1.2rem; color:var(--info); margin:.25rem 0 .5rem; }
+        .facts { display:grid; grid-template-columns: 1fr 1fr; gap:.75rem 1.25rem; margin-top:1.1rem; }
+        .fact .k { font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+        .fact .v { font-size:.95rem; }
+        .qrbox { background:#fff; border-radius:var(--radius-md); padding:.6rem; width:220px; max-width:100%; }
+        .qrbox img { width:100%; height:auto; display:block; }
+        .qrcap { text-align:center; font-size:.75rem; color:var(--muted); margin-top:.5rem; }
+        .bars { margin-top:1.1rem; }
+        .bar-row { display:flex; align-items:center; gap:.6rem; margin:.3rem 0; font-size:.82rem; }
+        .bar-row .lbl { width:130px; color:var(--muted); }
+        .bar { flex:1; height:8px; background:var(--line); border-radius:4px; overflow:hidden; }
+        .bar > span { display:block; height:100%; background:var(--verified); }
+        .bar-row.ai .bar > span { background:var(--pending); }
+        .bar-row.agent .bar > span { background:var(--info); }
+        .proof { margin-top:1.25rem; }
+        .proof dt { font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-top:.7rem; }
+        .proof dd { font-family:var(--font-mono); font-size:.8rem; word-break:break-all; }
+        .actions { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1.25rem; }
+        .actions .btn { text-decoration:none; }
+        .howto { font-size:.85rem; color:var(--muted); margin-top:.5rem; }
+        .howto li { margin:.25rem 0 .25rem 1.1rem; }
+        .admin-box { margin-top:1.25rem; border:1px dashed var(--line); border-radius:var(--radius-md); padding:1rem; }
+        .admin-box select, .admin-box input { padding:.45rem .6rem; margin-right:.5rem; }
+        .toast { font-size:.8rem; color:var(--verified); margin-left:.5rem; }
+    </style>
+</head>
+<body>
+<div class="vwrap">
+    <div class="vbrand">
+        <a class="logo" href="/">⬡ Provenance</a>
+        <span class="muted-text">Certificate verification</span>
+    </div>
+
+{% if not cert %}
+    <div class="card" style="text-align:center;padding:2.5rem 1rem">
+        <h1 style="font-size:1.4rem;margin-bottom:.5rem">Certificate not found</h1>
+        <p class="muted-text">No certificate matches this link. Check that the QR code or the link was copied in full.</p>
+        <p style="margin-top:1rem"><a class="btn btn-secondary" href="/credentials">Credentials registry</a></p>
+    </div>
+{% else %}
+
+    {% if cert.status == 'valid' %}
+    <div class="banner banner-valid">
+        <div class="icon">✔</div>
+        <div>
+            <h1>Verified</h1>
+            <p>This certificate is recorded in the Provenance ledger and the ledger's hash chain is intact.</p>
+        </div>
+    </div>
+    {% elif cert.status == 'revoked' %}
+    <div class="banner banner-revoked">
+        <div class="icon">✖</div>
+        <div>
+            <h1>Revoked</h1>
+            <p>{{ cert.revoked_reason }}{% if cert.revoked_at %} · {{ cert.revoked_at[:10] }}{% endif %}. This certificate should no longer be relied on.</p>
+        </div>
+    </div>
+    {% else %}
+    <div class="banner banner-unverified">
+        <div class="icon">!</div>
+        <div>
+            <h1>Could not be verified</h1>
+            <p>
+                {% if not cert.ledger %}No matching ledger entry was found for this certificate.
+                {% elif not cert.ledger.entry_ok %}The ledger entry for this certificate does not match its recorded hash.
+                {% else %}The ledger hash chain failed its integrity check{% if cert.chain_broken_at %} at entry #{{ cert.chain_broken_at }}{% endif %}.{% endif %}
+                Treat it as unverified.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="cert-grid">
+            <div>
+                <div class="kicker">Certificate of verified contribution</div>
+                <h2 class="holder">{{ cert.holder_name }}</h2>
+                <div class="kicker">{{ cert.role_label }} on</div>
+                <div class="project">{{ cert.project_title }}</div>
+                {% if cert.project_summary %}
+                <p class="muted-text" style="max-width:46ch">{{ cert.project_summary }}</p>
+                {% endif %}
+
+                <div class="facts">
+                    <div class="fact"><div class="k">Issued</div><div class="v">{{ cert.issued_pretty }}</div></div>
+                    <div class="fact"><div class="k">Sponsor</div><div class="v">{{ cert.sponsor_name }}</div></div>
+                    <div class="fact"><div class="k">Certificate ID</div><div class="v" style="font-family:var(--font-mono)">{{ cert.short_id }}</div></div>
+                    {% if cert.holder_institution %}
+                    <div class="fact"><div class="k">Institution</div><div class="v">{{ cert.holder_institution }}</div></div>
+                    {% endif %}
+                    <div class="fact"><div class="k">Approved contributions</div><div class="v">{{ cert.contributions_approved }}</div></div>
+                    <div class="fact"><div class="k">Approved expert reviews</div><div class="v">{{ cert.reviews_approved }}</div></div>
+                </div>
+
+                {% if cert.contributions_approved %}
+                <div class="bars">
+                    <div class="kicker">Authorship declaration (approved contributions)</div>
+                    {% for d in cert.declarations %}
+                    <div class="bar-row {% if d.key == 'ai_assisted' %}ai{% elif d.key == 'agent_generated' %}agent{% endif %}">
+                        <span class="lbl">{{ d.label }}</span>
+                        <span class="bar"><span style="width:{{ d.pct }}%"></span></span>
+                        <span>{{ d.count }} ({{ d.pct }}%)</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div>
+                <div class="qrbox"><img src="{{ cert.qr_url }}" alt="QR code linking to this verification page"></div>
+                <div class="qrcap">Scan to verify</div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <a class="btn btn-primary" href="{{ cert.print_url }}?print=1" target="_blank" rel="noopener">Download PDF</a>
+            <a class="btn btn-secondary" href="{{ cert.linkedin_url }}" target="_blank" rel="noopener">Add to LinkedIn</a>
+            <button class="btn btn-secondary" type="button" id="btn-copy" data-url="{{ cert.verify_url }}">Copy link</button>
+            <a class="btn btn-secondary" href="{{ cert.qr_url }}" download="provenance-{{ cert.short_id }}-qr.svg">Download QR</a>
+            <span id="copy-msg" class="toast" aria-live="polite"></span>
+        </div>
+    </div>
+
+    <div class="card proof" style="margin-top:1.25rem">
+        <h2 style="font-size:1.05rem">Ledger proof</h2>
+        <dl>
+            <dt>Credential hash (SHA-256)</dt>
+            <dd>{{ cert.credential_hash }}</dd>
+            {% if cert.ledger %}
+            <dt>Ledger entry</dt>
+            <dd>#{{ cert.ledger.entry_id }} · {{ cert.ledger.timestamp }} · hashes re-computed: {% if cert.ledger.entry_ok %}<span class="text-lime">match</span>{% else %}<span class="text-red">MISMATCH</span>{% endif %}</dd>
+            <dt>Entry hash</dt>
+            <dd>{{ cert.ledger.entry_hash }}</dd>
+            <dt>Previous entry hash</dt>
+            <dd>{{ cert.ledger.prev_hash }}</dd>
+            {% else %}
+            <dt>Ledger entry</dt>
+            <dd class="text-amber">not found</dd>
+            {% endif %}
+            <dt>Ledger chain</dt>
+            <dd>
+                {% if cert.chain_ok %}<span class="text-lime">intact</span>{% else %}<span class="text-red">BROKEN{% if cert.chain_broken_at %} at entry #{{ cert.chain_broken_at }}{% endif %}</span>{% endif %}
+                {% if cert.chain_checked is not none %} · {{ cert.chain_checked }} entries checked{% endif %}
+            </dd>
+            {% if cert.chain_head %}
+            <dt>Chain head</dt>
+            <dd>{{ cert.chain_head }}</dd>
+            {% endif %}
+        </dl>
+        <ul class="howto">
+            <li>The same facts are available as JSON at <a href="/api/verify/{{ cert.credential_hash }}">/api/verify/…</a>.</li>
+            <li>Anyone can re-check the chain at <a href="/api/ledger/verify">/api/ledger/verify</a>.</li>
+            <li>Limits: this proves the certificate was recorded and has not been altered since. It does not prove the quality of the work.</li>
+        </ul>
+    </div>
+
+    {% if user and user.role == 'admin' and not cert.revoked %}
+    <div class="admin-box">
+        <strong>Admin: revoke this certificate</strong>
+        <p class="muted-text" style="margin:.35rem 0 .7rem">Writes a <code>credential_revoked</code> entry to the ledger. This cannot be undone.</p>
+        <select id="rv-reason">
+            {% for code, label in reasons.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+        </select>
+        <input id="rv-note" type="text" maxlength="300" placeholder="Optional note (not written to the ledger)">
+        <button class="btn btn-secondary" type="button" id="btn-revoke" data-hash="{{ cert.credential_hash }}">Revoke</button>
+        <span id="rv-msg" class="toast" style="color:var(--pending)"></span>
+    </div>
+    {% endif %}
+
+    <script>
+    (function () {
+        var copyBtn = document.getElementById('btn-copy');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function () {
+                var url = copyBtn.getAttribute('data-url');
+                var msg = document.getElementById('copy-msg');
+                function done() { msg.textContent = 'Link copied'; setTimeout(function () { msg.textContent = ''; }, 2000); }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(done, function () { window.prompt('Copy this link:', url); });
+                } else { window.prompt('Copy this link:', url); }
+            });
+        }
+        var rvBtn = document.getElementById('btn-revoke');
+        if (rvBtn) {
+            rvBtn.addEventListener('click', function () {
+                if (!window.confirm('Revoke this certificate? This is recorded in the ledger and cannot be undone.')) { return; }
+                var msg = document.getElementById('rv-msg');
+                fetch('/api/credentials/' + rvBtn.getAttribute('data-hash') + '/revoke', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reason_code: document.getElementById('rv-reason').value,
+                        note: document.getElementById('rv-note').value
+                    })
+                }).then(function (res) {
+                    if (res.ok) { window.location.reload(); }
+                    else { res.json().then(function (j) { msg.textContent = j.detail || 'Failed'; }, function () { msg.textContent = 'Failed'; }); }
+                }).catch(function () { msg.textContent = 'Network error'; });
+            });
+        }
+    })();
+    </script>
+{% endif %}
+</div>
+</body>
+</html>
