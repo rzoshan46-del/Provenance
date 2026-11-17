@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Admin Console — Provenance{% endblock %}
+{% block content %}
+
+<style>
+    .ac-head { padding:2rem 0 1.25rem; border-bottom:1px solid var(--line); margin-bottom:1.5rem; }
+    .ac-kicker { font-size:.7rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.3rem; }
+    .ac-head h1 { font-size:1.8rem; font-weight:900; letter-spacing:-.045em; margin:0; }
+    .ac-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.9rem; margin-bottom:1.5rem; }
+    .ac-card { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg); padding:1rem 1.15rem; }
+    .ac-card .n { font-size:1.9rem; font-weight:800; line-height:1.1; }
+    .ac-card .l { font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:.2rem; }
+    .ac-card .s { font-size:.8rem; color:var(--muted); margin-top:.45rem; }
+    .ac-two { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+    .ac-panel { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg); padding:1.1rem 1.25rem; }
+    .ac-panel h2 { font-size:1rem; margin:0 0 .75rem; }
+    .ac-row { display:flex; justify-content:space-between; gap:.75rem; font-size:.84rem; padding:.4rem 0; border-top:1px solid var(--line); }
+    .ac-row:first-of-type { border-top:0; }
+    .ac-row .m { color:var(--muted); }
+    .ac-mono { font-family:var(--font-mono); font-size:.78rem; }
+    .ac-ok { color:var(--verified); } .ac-warn { color:var(--pending); } .ac-bad { color:var(--broken); }
+    .ac-check { display:flex; gap:.6rem; font-size:.84rem; padding:.45rem 0; border-top:1px solid var(--line); }
+    .ac-check:first-of-type { border-top:0; }
+    .ac-check .d { color:var(--muted); font-size:.78rem; }
+    @media (max-width:600px) { .ac-two { grid-template-columns:1fr; } }
+</style>
+
+<div class="ac-head">
+    <div class="ac-kicker">Governance</div>
+    <h1>Admin Console</h1>
+</div>
+
+<div class="ac-grid">
+    <a class="ac-card" href="/review" style="text-decoration:none;color:inherit">
+        <div class="n" style="color:var(--pending)">{{ review_counts.pending }}</div>
+        <div class="l">Projects awaiting review</div>
+        <div class="s">{{ review_counts.changes_requested }} with changes requested · open the queue →</div>
+    </a>
+    <div class="ac-card">
+        <div class="n" style="color:var(--verified)">{{ review_counts.approved }}</div>
+        <div class="l">Published projects</div>
+        <div class="s">{{ review_counts.total }} total · {{ review_counts.rejected }} rejected</div>
+    </div>
+    <a class="ac-card" href="/ledger" style="text-decoration:none;color:inherit">
+        <div class="n {{ 'ac-ok' if chain.ok else 'ac-bad' }}">{{ ledger_count }}</div>
+        <div class="l">Ledger entries</div>
+        <div class="s">Chain {% if chain.ok %}<span class="ac-ok">intact</span>{% else %}<span class="ac-bad">BROKEN{% if chain.first_broken_id %} at #{{ chain.first_broken_id }}{% endif %}</span>{% endif %} · view ledger →</div>
+    </a>
+    <a class="ac-card" href="/credentials" style="text-decoration:none;color:inherit">
+        <div class="n">{{ credentials_issued }}</div>
+        <div class="l">Credentials issued</div>
+        <div class="s">{{ credentials_revoked }} revoked</div>
+    </a>
+    <div class="ac-card">
+        <div class="n">{{ ai_total }}</div>
+        <div class="l">AI gateway calls</div>
+        <div class="s">{% for r in ai_by_route %}{{ r.model_route }} {{ r.n }}{% if not loop.last %} · {% endif %}{% else %}none yet{% endfor %}</div>
+    </div>
+</div>
+
+<div class="ac-two">
+    <div class="ac-panel">
+        <h2>Review queue (next up)</h2>
+        {% for r in pending %}
+        <div class="ac-row">
+            <span>{{ r.title }}<br><span class="m">sponsor {{ r.sponsor_name }} · {{ r.submitted_at[:10] }}</span></span>
+            <a href="/review" class="btn btn-secondary" style="align-self:center;font-size:.75rem;padding:.25rem .65rem">Review</a>
+        </div>
+        {% else %}
+        <div class="m" style="color:var(--muted);font-size:.86rem">Nothing is waiting for review.</div>
+        {% endfor %}
+    </div>
+
+    <div class="ac-panel">
+        <h2>Users by role</h2>
+        {% for r in users_by_role %}
+        <div class="ac-row"><span style="text-transform:capitalize">{{ r.role }}</span><span class="ac-mono">{{ r.n }}</span></div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="ac-two">
+    <div class="ac-panel">
+        <h2>Recent ledger activity</h2>
+        {% for e in recent %}
+        <div class="ac-row">
+            <span><span class="ac-mono">#{{ e.id }}</span> {{ e.action }}</span>
+            <span class="m ac-mono">{{ e.timestamp[:19] }}</span>
+        </div>
+        {% else %}
+        <div style="color:var(--muted);font-size:.86rem">No entries yet.</div>
+        {% endfor %}
+    </div>
+
+    <div class="ac-panel">
+        <h2>Deployment checks</h2>
+        {% for c in checks %}
+        <div class="ac-check">
+            <span class="{{ 'ac-ok' if c.ok else 'ac-warn' }}">{{ '✔' if c.ok else '!' }}</span>
+            <span>{{ c.label }}<br><span class="d">{{ c.detail }}</span></span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}

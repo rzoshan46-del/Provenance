@@ -84,7 +84,7 @@ Modern research ecosystems face four fundamental breakdowns:
   $$\sum \text{Student Shares} + \sum \text{Expert Shares} + \text{Platform Fee (10\%)} + \text{AI Reserve (5\%)} \equiv \text{Milestone Total}$$
 
 ### 6. Scoped AI Gateway & Prompt Firewall ([`app/ai/gateway.py`](app/ai/gateway.py))
-- Every AI agent must have a named human supervisor; autonomous unowned actions are prohibited.
+- Every AI agent must have a named human supervisor. Autonomous unowned actions are prohibited.
 - **Data Privacy Routing**: Confidential projects automatically route to local air-gapped LLMs (Ollama); cloud APIs are blocked.
 - **AI Firewall**: Scans inbound content for adversarial prompt injections (`ignore previous instructions`, `reveal system prompt`) and quarantines suspicious tool calls (e.g. `send_email`).
 
@@ -95,7 +95,7 @@ Modern research ecosystems face four fundamental breakdowns:
 This project was built through a high-discipline **human-in-the-loop pair-programming methodology**:
 
 - **Architectural & Security Invariants (Crafted by Human Design)**: The zero-trust least-privilege matrix, the fractional split algorithms, the zero-width steganographic bit-encoding schemes, and the cryptographic ledger rules were manually conceptualized, specified, and enforced.
-- **High-Velocity AI Amplification**: Generative AI tools (Google Antigravity) were utilized as an agile engineering accelerant—generating synthetic biomedical datasets, building test harnesses, and rapidly scaffolding comprehensive integration scenarios.
+- **High-Velocity AI Amplification**: Generative AI tools (Google Antigravity) were utilized as an agile engineering accelerant—generating synthetic biomedical datasets, building test harnesses, and rapidly scaffolding broad integration scenarios.
 - **Test-Driven Defense**: Nothing was declared complete without passing a suite of **over 130+ continuous end-to-end invariant checks** in `smoke.py`. Every AI prompt, decision, and generation is transparently logged in `AI_USAGE.md`.
 
 ---

@@ -94,6 +94,14 @@ templates.env.globals["demo_mode"] = _ledger_mod.demo_mode
 # Public certificates: /verify, /certificate, QR code (app/certificates.py)
 from app.certificates import build_router as _build_cert_router
 app.include_router(_build_cert_router(templates))
+# Project review queue + admin console (app/reviews.py, app/admin_console.py)
+from app.reviews import (
+    filter_listing as _filter_review_listing,
+    install as _install_reviews,
+    mark_pending as _mark_pending,
+    mark_pending_api as _mark_pending_api,
+)
+_install_reviews(app, templates)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -516,7 +524,7 @@ def _project_list_rows(user: Optional[Any]) -> list:
 @app.get("/projects")
 def projects_list(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
-    projects = _project_list_rows(user)
+    projects = _filter_review_listing(_project_list_rows(user), user)
 
     # Compute membership state for each project for this user
     membership_states: Dict[int, str] = {}
@@ -578,7 +586,8 @@ async def project_new_post(
     }
     try:
         project_id = create_project(sponsor, form_data)
-        return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
+        _mark_pending(project_id, sponsor, "form")
+        return RedirectResponse(url=f"/review?submitted={project_id}", status_code=303)
     except HTTPException as exc:
         return templates.TemplateResponse(
             request,
@@ -983,6 +992,7 @@ async def api_create_project(
         "ip_publication": ip_publication,
     }
     project_id = create_project(user, fields)
+    _mark_pending_api(project_id, user)
     return JSONResponse({"project_id": project_id}, status_code=201)
 
 

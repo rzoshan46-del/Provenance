@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Provenance{% endblock %}</title>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-brand">
+            <a href="/" class="brand-logo">⬡ Provenance</a>
+        </div>
+
+        <nav class="topbar-nav">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/projects" class="nav-link">Projects</a>
+            <a href="/integrity" class="nav-link">Integrity</a>
+            <a href="/ledger" class="nav-link">Ledger</a>
+            <a href="/credentials" class="nav-link">Credentials</a>
+            {% if user and user.role == 'admin' %}
+            <a href="/admin" class="nav-link">Admin</a>
+            {% endif %}
+            {% if demo_mode() %}
+            <a href="/story" class="nav-link" style="color:var(--pending)">Story</a>
+            {% endif %}
+        </nav>
+
+        <div class="topbar-right">
+            {% if user %}
+                {# Credit badge #}
+                <a href="/me" class="credit-badge" title="Your contribution credits">
+                    ⬡ {{ user_credits(user.id) }} cr
+                </a>
+                {# Persona switcher #}
+                <select class="persona-select" onchange="if(this.value){ window.location.href='/switch/' + this.value; }">
+                    {% for u in all_users %}
+                        <option value="{{ u.id }}" {% if user.id == u.id %}selected{% endif %}>
+                            {{ u.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
+                <a href="/me" class="nav-link" style="font-size:.8rem">Profile</a>
+                <a href="/switch-clear" class="nav-link" style="font-size:.8rem;color:var(--muted)" title="Sign out">Sign out</a>
+            {% else %}
+                <a href="/login" class="btn-signin">Sign In →</a>
+            {% endif %}
+        </div>
+    </header>
+
+    {% if watermark_overlay %}
+    <div class="watermark-overlay" aria-hidden="true">
+        {% for _ in range(24) %}
+        <span class="watermark-overlay-item">{{ watermark_overlay }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <span>⬡ Provenance</span>
+            <a href="/ledger" style="color:var(--muted);text-decoration:none;font-size:.78rem">Ledger ⛓</a>
+            <span class="mock-badge">MOCKED: synthetic personas &amp; simulated auth</span>
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+    <script src="/static/chatbot.js"></script>
+</body>
+</html>

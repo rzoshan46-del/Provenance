@@ -18,7 +18,9 @@
             <a href="/integrity" class="nav-link">Integrity</a>
             <a href="/ledger" class="nav-link">Ledger</a>
             <a href="/credentials" class="nav-link">Credentials</a>
+            {% if user and user.role == 'sponsor' %}<a href="/review" class="nav-link">My submissions</a>{% endif %}
             {% if user and user.role == 'admin' %}
+            <a href="/review" class="nav-link">Review</a>
             <a href="/admin" class="nav-link">Admin</a>
             {% endif %}
             {% if demo_mode() %}

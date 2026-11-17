@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}{% if user.role == 'admin' %}Project review{% else %}My submissions{% endif %} — Provenance{% endblock %}
+{% block content %}
+
+<style>
+    .rv-head { padding:2rem 0 1.25rem; border-bottom:1px solid var(--line); margin-bottom:1.5rem; }
+    .rv-kicker { font-size:.7rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.3rem; }
+    .rv-head h1 { font-size:1.8rem; font-weight:900; letter-spacing:-.045em; margin:0; }
+    .rv-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:.75rem; margin-bottom:1.5rem; }
+    .rv-stat { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg); padding:.9rem 1rem; }
+    .rv-stat .n { font-size:1.7rem; font-weight:800; line-height:1.1; }
+    .rv-stat .l { font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+    .rv-flash { border-radius:var(--radius-md); padding:.7rem 1rem; margin-bottom:1rem; font-size:.88rem; border:1px solid; }
+    .rv-flash.ok { background:rgba(198,255,61,.07); border-color:rgba(198,255,61,.4); color:var(--verified); }
+    .rv-flash.err { background:rgba(255,77,79,.08); border-color:rgba(255,77,79,.5); color:var(--broken); }
+    .rv-section { margin:2rem 0 .75rem; font-size:1.05rem; }
+    .rv-card { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-lg); padding:1.1rem 1.25rem; margin-bottom:1rem; }
+    .rv-top { display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; align-items:flex-start; }
+    .rv-title { font-size:1.1rem; font-weight:700; }
+    .rv-meta { font-size:.78rem; color:var(--muted); margin-top:.2rem; }
+    .rv-chip { display:inline-block; font-size:.68rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:.18rem .55rem; border-radius:999px; border:1px solid var(--line); color:var(--muted); margin-right:.3rem; }
+    .rv-chip.pending { color:var(--pending); border-color:rgba(255,176,32,.5); }
+    .rv-chip.approved { color:var(--verified); border-color:rgba(198,255,61,.5); }
+    .rv-chip.rejected { color:var(--broken); border-color:rgba(255,77,79,.5); }
+    .rv-chip.changes_requested { color:var(--info); border-color:rgba(61,214,255,.5); }
+    .rv-summary { margin:.7rem 0; font-size:.9rem; color:var(--text); max-width:75ch; }
+    .rv-checks { list-style:none; margin:.6rem 0 0; padding:0; font-size:.82rem; }
+    .rv-checks li { margin:.2rem 0; }
+    .rv-checks .ok { color:var(--verified); }
+    .rv-checks .warn { color:var(--pending); }
+    .rv-checks .d { color:var(--muted); }
+    .rv-note { font-size:.85rem; border-left:3px solid var(--info); padding:.4rem .75rem; margin:.7rem 0; background:rgba(61,214,255,.05); }
+    .rv-form { display:flex; gap:.6rem; flex-wrap:wrap; align-items:flex-start; margin-top:.9rem; }
+    .rv-form select, .rv-form textarea, .rv-form input[type=text] { background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:var(--radius-md); padding:.5rem .65rem; color:var(--text); font-size:.85rem; font-family:inherit; max-width:100%; }
+    .rv-form textarea { flex:1; min-width:220px; min-height:70px; }
+    .rv-edit label { display:block; font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin:.7rem 0 .25rem; }
+    .rv-edit input[type=text], .rv-edit textarea { width:100%; background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:var(--radius-md); padding:.5rem .65rem; color:var(--text); font-size:.88rem; font-family:inherit; }
+    .rv-edit textarea { min-height:110px; }
+    .rv-empty { color:var(--muted); font-size:.9rem; padding:1rem 0; }
+    details.rv-edit summary { cursor:pointer; color:var(--info); font-size:.85rem; margin-top:.8rem; }
+    @media (max-width: 600px) { .rv-form select, .rv-form .btn { width:100%; } }
+</style>
+
+<div class="rv-head">
+    <div class="rv-kicker">{% if user.role == 'admin' %}Governance{% else %}Sponsor{% endif %}</div>
+    <h1>{% if user.role == 'admin' %}Project review queue{% else %}My submissions{% endif %}</h1>
+</div>
+
+{% if msg %}<div class="rv-flash ok">{{ msg }}</div>{% endif %}
+{% if error %}<div class="rv-flash err">{{ error }}</div>{% endif %}
+{% if submitted %}
+<div class="rv-flash ok">Project #{{ submitted }} was submitted. An admin will review it before students can see it.</div>
+{% endif %}
+
+{% if user.role == 'admin' %}
+
+<div class="rv-stats">
+    <div class="rv-stat"><div class="n" style="color:var(--pending)">{{ counts.pending }}</div><div class="l">Awaiting review</div></div>
+    <div class="rv-stat"><div class="n" style="color:var(--info)">{{ counts.changes_requested }}</div><div class="l">Changes requested</div></div>
+    <div class="rv-stat"><div class="n" style="color:var(--verified)">{{ counts.approved }}</div><div class="l">Published</div></div>
+    <div class="rv-stat"><div class="n" style="color:var(--broken)">{{ counts.rejected }}</div><div class="l">Rejected</div></div>
+</div>
+
+<p class="muted-text" style="margin-bottom:1rem;font-size:.85rem">
+    Admins review the public summary only. The confidential brief stays hidden by design; the checks below report pass or fail without showing it.
+</p>
+
+<h2 class="rv-section">Awaiting review ({{ pending|length }})</h2>
+{% for r in pending %}
+<div class="rv-card">
+    <div class="rv-top">
+        <div>
+            <div class="rv-title">{{ r.title }}</div>
+            <div class="rv-meta">Project #{{ r.project_id }} · sponsor {{ r.sponsor_name }} · submitted {{ r.submitted_at[:10] }}</div>
+        </div>
+        <div>
+            <span class="rv-chip pending">Pending</span>
+            <span class="rv-chip">{{ r.sensitivity_label }}</span>
+            <span class="rv-chip">{{ r.engagement_model }}</span>
+        </div>
+    </div>
+    <p class="rv-summary">{{ r.public_summary }}</p>
+    <ul class="rv-checks">
+        {% for c in r.checks %}
+        <li><span class="{{ 'ok' if c.ok else 'warn' }}">{{ '✔' if c.ok else '!' }}</span> {{ c.label }} <span class="d">· {{ c.detail }}</span></li>
+        {% endfor %}
+    </ul>
+    <form class="rv-form" method="post" action="/review/{{ r.project_id }}/decision">
+        <select name="decision" aria-label="Decision">
+            <option value="approve">Approve and publish</option>
+            <option value="request_changes">Request changes</option>
+            <option value="reject">Reject</option>
+        </select>
+        <textarea name="note" maxlength="500" placeholder="Note to the sponsor (required to reject or request changes)"></textarea>
+        <button class="btn btn-primary" type="submit">Submit decision</button>
+    </form>
+</div>
+{% else %}
+<div class="rv-empty">Nothing is waiting. New sponsor submissions will appear here.</div>
+{% endfor %}
+
+{% if waiting %}
+<h2 class="rv-section">Waiting on the sponsor ({{ waiting|length }})</h2>
+{% for r in waiting %}
+<div class="rv-card">
+    <div class="rv-top">
+        <div>
+            <div class="rv-title">{{ r.title }}</div>
+            <div class="rv-meta">Project #{{ r.project_id }} · sponsor {{ r.sponsor_name }}</div>
+        </div>
+        <span class="rv-chip changes_requested">Changes requested</span>
+    </div>
+    {% if r.note %}<div class="rv-note">{{ r.note }}</div>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if decided %}
+<h2 class="rv-section">Recent decisions</h2>
+{% for r in decided %}
+<div class="rv-card">
+    <div class="rv-top">
+        <div>
+            <div class="rv-title">{{ r.title }}</div>
+            <div class="rv-meta">Project #{{ r.project_id }} · sponsor {{ r.sponsor_name }}{% if r.decided_at %} · decided {{ r.decided_at[:10] }}{% endif %}</div>
+        </div>
+        <span class="rv-chip {{ r.state }}">{{ r.state_label }}</span>
+    </div>
+    {% if r.note %}<div class="rv-note">{{ r.note }}</div>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% else %}
+
+<div class="rv-stats">
+    <div class="rv-stat"><div class="n" style="color:var(--pending)">{{ mine|selectattr('state','equalto','pending')|list|length }}</div><div class="l">Awaiting review</div></div>
+    <div class="rv-stat"><div class="n" style="color:var(--info)">{{ mine|selectattr('state','equalto','changes_requested')|list|length }}</div><div class="l">Need your changes</div></div>
+    <div class="rv-stat"><div class="n" style="color:var(--verified)">{{ mine|selectattr('state','equalto','approved')|list|length }}</div><div class="l">Published</div></div>
+</div>
+
+{% for r in mine %}
+<div class="rv-card">
+    <div class="rv-top">
+        <div>
+            <div class="rv-title">{{ r.title }}</div>
+            <div class="rv-meta">Project #{{ r.project_id }} · submitted {{ r.submitted_at[:10] }}</div>
+        </div>
+        <span class="rv-chip {{ r.state }}">{{ r.state_label }}</span>
+    </div>
+    {% if r.note %}<div class="rv-note"><strong>Admin note:</strong> {{ r.note }}</div>{% endif %}
+    {% if r.state == 'pending' %}
+        <p class="muted-text" style="font-size:.85rem;margin-top:.6rem">Students cannot see this project until an admin approves it.</p>
+    {% elif r.state == 'approved' %}
+        <p style="margin-top:.6rem"><a class="btn btn-secondary" href="/projects/{{ r.project_id }}">View published project</a></p>
+    {% endif %}
+
+    {% if r.state in ('pending', 'changes_requested') %}
+    <details class="rv-edit">
+        <summary>{% if r.state == 'changes_requested' %}Edit and resubmit{% else %}Edit this submission{% endif %}</summary>
+        <form method="post" action="/review/{{ r.project_id }}/edit">
+            <label for="t{{ r.project_id }}">Title</label>
+            <input id="t{{ r.project_id }}" type="text" name="title" maxlength="120" value="{{ r.title }}" required>
+            <label for="s{{ r.project_id }}">Public summary</label>
+            <textarea id="s{{ r.project_id }}" name="public_summary" maxlength="1500" required>{{ r.public_summary }}</textarea>
+            <label for="b{{ r.project_id }}">Confidential brief</label>
+            <textarea id="b{{ r.project_id }}" name="confidential_brief" maxlength="10000">{{ r.confidential_brief }}</textarea>
+            {% if r.state == 'changes_requested' %}<input type="hidden" name="resubmit_after" value="1">{% endif %}
+            <p style="margin-top:.8rem"><button class="btn btn-primary" type="submit">{% if r.state == 'changes_requested' %}Save and resubmit{% else %}Save changes{% endif %}</button></p>
+        </form>
+    </details>
+    {% endif %}
+</div>
+{% else %}
+<div class="rv-empty">No submissions yet. <a href="/projects/new">Post a problem</a> and it will appear here.</div>
+{% endfor %}
+
+{% endif %}
+
+{% endblock %}
