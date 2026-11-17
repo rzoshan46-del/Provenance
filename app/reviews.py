@@ -24,6 +24,7 @@ Settings:
   REQUIRE_PROJECT_REVIEW=1   also send projects created via POST /api/projects to review
                              (the sponsor web form always goes to review).
 """
+
 import hashlib
 import os
 import re
@@ -133,8 +134,14 @@ def _project(project_id: int) -> Any:
 
 
 def _require_owner(sponsor: Any, project: Any) -> None:
-    if not sponsor or sponsor["role"] != "sponsor" or project["sponsor_id"] != sponsor["id"]:
-        raise HTTPException(status_code=403, detail="Forbidden: only the owning sponsor can do this")
+    if (
+        not sponsor
+        or sponsor["role"] != "sponsor"
+        or project["sponsor_id"] != sponsor["id"]
+    ):
+        raise HTTPException(
+            status_code=403, detail="Forbidden: only the owning sponsor can do this"
+        )
 
 
 def _conditional_update(sql: str, params: tuple) -> int:
@@ -187,7 +194,9 @@ def decide(admin: Any, project_id: int, decision: str, note: Optional[str]) -> s
     _project(project_id)
     row = _review_row(project_id)
     if not row or row["state"] != "pending":
-        raise HTTPException(status_code=409, detail="This project is not awaiting review")
+        raise HTTPException(
+            status_code=409, detail="This project is not awaiting review"
+        )
     note = (note or "").strip()
     if decision != "approve" and len(note) < 5:
         raise HTTPException(
@@ -204,13 +213,19 @@ def decide(admin: Any, project_id: int, decision: str, note: Optional[str]) -> s
         (new_state, _now(), admin["id"], note[:MAX_NOTE] or None, project_id),
     )
     if changed != 1:
-        raise HTTPException(status_code=409, detail="This project is not awaiting review")
+        raise HTTPException(
+            status_code=409, detail="This project is not awaiting review"
+        )
     ledger.append(
         action="project_review_decided",
         actor_id=admin["id"],
         actor_type="human",
         project_id=project_id,
-        payload={"project_id": project_id, "decision": decision, "reviewer_id": admin["id"]},
+        payload={
+            "project_id": project_id,
+            "decision": decision,
+            "reviewer_id": admin["id"],
+        },
     )
     return new_state
 
@@ -227,7 +242,10 @@ def resubmit(sponsor: Any, project_id: int) -> None:
         (_now(), project_id),
     )
     if changed != 1:
-        raise HTTPException(status_code=409, detail="Only projects with requested changes can be resubmitted")
+        raise HTTPException(
+            status_code=409,
+            detail="Only projects with requested changes can be resubmitted",
+        )
     ledger.append(
         action="project_resubmitted",
         actor_id=sponsor["id"],
@@ -249,19 +267,33 @@ def edit_project(
     _require_owner(sponsor, project)
     state = state_of(project_id)
     if state not in ("pending", "changes_requested"):
-        raise HTTPException(status_code=409, detail="This project can no longer be edited")
+        raise HTTPException(
+            status_code=409, detail="This project can no longer be edited"
+        )
 
     title = (title or "").strip()
     public_summary = (public_summary or "").strip()
-    confidential_brief = (confidential_brief or "").strip() or project["confidential_brief"]
+    confidential_brief = (confidential_brief or "").strip() or project[
+        "confidential_brief"
+    ]
     if not title or not public_summary:
-        raise HTTPException(status_code=400, detail="Title and public summary are required")
+        raise HTTPException(
+            status_code=400, detail="Title and public summary are required"
+        )
     if len(title) > MAX_TITLE:
-        raise HTTPException(status_code=400, detail=f"Title must be at most {MAX_TITLE} characters")
+        raise HTTPException(
+            status_code=400, detail=f"Title must be at most {MAX_TITLE} characters"
+        )
     if len(public_summary) > MAX_SUMMARY:
-        raise HTTPException(status_code=400, detail=f"Public summary must be at most {MAX_SUMMARY} characters")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Public summary must be at most {MAX_SUMMARY} characters",
+        )
     if len(confidential_brief) > MAX_BRIEF:
-        raise HTTPException(status_code=400, detail=f"Confidential brief must be at most {MAX_BRIEF} characters")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Confidential brief must be at most {MAX_BRIEF} characters",
+        )
 
     execute(
         "UPDATE projects SET title = ?, public_summary = ?, confidential_brief = ? WHERE id = ?",
@@ -275,7 +307,9 @@ def edit_project(
         project_id=project_id,
         payload={
             "project_id": project_id,
-            "brief_hash": hashlib.sha256(confidential_brief.encode("utf-8")).hexdigest(),
+            "brief_hash": hashlib.sha256(
+                confidential_brief.encode("utf-8")
+            ).hexdigest(),
         },
     )
     if resubmit_after and state == "changes_requested":
@@ -293,7 +327,9 @@ def automated_checks(title: str, summary: str, brief: str) -> List[Dict[str, Any
         {
             "label": "No personal data in the public text",
             "ok": pii_hits == 0,
-            "detail": "none found" if pii_hits == 0 else f"{pii_hits} possible item(s) (email or phone)",
+            "detail": "none found"
+            if pii_hits == 0
+            else f"{pii_hits} possible item(s) (email or phone)",
         },
         {
             "label": "No prompt-injection patterns",
@@ -308,7 +344,9 @@ def automated_checks(title: str, summary: str, brief: str) -> List[Dict[str, Any
         {
             "label": "Confidential brief is not copied into the public summary",
             "ok": not leak,
-            "detail": "no overlap" if not leak else "the start of the brief appears in the summary",
+            "detail": "no overlap"
+            if not leak
+            else "the start of the brief appears in the summary",
         },
         {
             "label": "Confidential brief is present",
@@ -337,7 +375,9 @@ def _queue_rows() -> List[Dict[str, Any]]:
     for row in rows:
         d = dict(row)
         brief = d.pop("confidential_brief") or ""
-        d["checks"] = automated_checks(d["title"] or "", d["public_summary"] or "", brief)
+        d["checks"] = automated_checks(
+            d["title"] or "", d["public_summary"] or "", brief
+        )
         d["state_label"] = STATE_LABELS.get(d["state"], d["state"])
         out.append(d)
     return out
@@ -391,7 +431,8 @@ async def review_gate(request: Request, call_next):
             user = current_user(request)
             owner = query_one("SELECT sponsor_id FROM projects WHERE id = ?", (pid,))
             allowed = bool(user) and (
-                user["role"] == "admin" or (owner is not None and owner["sponsor_id"] == user["id"])
+                user["role"] == "admin"
+                or (owner is not None and owner["sponsor_id"] == user["id"])
             )
             if not allowed:
                 return JSONResponse({"detail": "Project not found"}, status_code=404)
@@ -406,7 +447,9 @@ class DecisionIn(BaseModel):
     note: Optional[str] = None
 
 
-def _redirect(msg: Optional[str] = None, error: Optional[str] = None) -> RedirectResponse:
+def _redirect(
+    msg: Optional[str] = None, error: Optional[str] = None
+) -> RedirectResponse:
     params = {}
     if msg:
         params["msg"] = msg
@@ -428,7 +471,9 @@ def build_router(templates) -> APIRouter:
         error: Optional[str] = None,
     ):
         if not user or user["role"] not in ("admin", "sponsor"):
-            raise HTTPException(status_code=403, detail="Forbidden: sponsors and admins only")
+            raise HTTPException(
+                status_code=403, detail="Forbidden: sponsors and admins only"
+            )
         all_users = query_all("SELECT * FROM users ORDER BY id ASC")
         ctx: Dict[str, Any] = {
             "user": user,
@@ -474,15 +519,27 @@ def build_router(templates) -> APIRouter:
         sponsor: Any = Depends(require_role("sponsor")),
     ):
         try:
-            edit_project(sponsor, project_id, title, public_summary, confidential_brief, bool(resubmit_after))
+            edit_project(
+                sponsor,
+                project_id,
+                title,
+                public_summary,
+                confidential_brief,
+                bool(resubmit_after),
+            )
         except HTTPException as exc:
             if exc.status_code == 403:
                 raise
             return _redirect(error=str(exc.detail))
-        return _redirect(msg=f"Project #{project_id} saved" + (" and resubmitted" if resubmit_after else ""))
+        return _redirect(
+            msg=f"Project #{project_id} saved"
+            + (" and resubmitted" if resubmit_after else "")
+        )
 
     @router.post("/review/{project_id}/resubmit")
-    def review_resubmit_form(project_id: int, sponsor: Any = Depends(require_role("sponsor"))):
+    def review_resubmit_form(
+        project_id: int, sponsor: Any = Depends(require_role("sponsor"))
+    ):
         try:
             resubmit(sponsor, project_id)
         except HTTPException as exc:
@@ -497,7 +554,9 @@ def build_router(templates) -> APIRouter:
         return {"counts": counts(), "items": _queue_rows()}
 
     @router.post("/api/review/{project_id}/decision")
-    def api_decision(project_id: int, body: DecisionIn, admin: Any = Depends(require_role("admin"))):
+    def api_decision(
+        project_id: int, body: DecisionIn, admin: Any = Depends(require_role("admin"))
+    ):
         state = decide(admin, project_id, body.decision, body.note)
         return {"project_id": project_id, "state": state}
 
@@ -505,7 +564,8 @@ def build_router(templates) -> APIRouter:
     def api_mine(sponsor: Any = Depends(require_role("sponsor"))):
         return {
             "items": [
-                {k: v for k, v in r.items() if k != "confidential_brief"} for r in _my_rows(sponsor)
+                {k: v for k, v in r.items() if k != "confidential_brief"}
+                for r in _my_rows(sponsor)
             ]
         }
 

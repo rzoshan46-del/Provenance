@@ -5,9 +5,9 @@ Pure functions only. No database access.
 All money calculations use fractions.Fraction and produce integer rupees.
 Guarantees: sum(experts) + sum(students) + fee + ai_reserve == amount_inr.
 """
-from fractions import Fraction
-from typing import Any, Dict, List, Optional, Sequence
 
+from fractions import Fraction
+from typing import Any, Dict, Optional, Sequence
 
 DEFAULT_CONFIG: Dict[str, float] = {
     "fee": 0.10,
@@ -64,7 +64,11 @@ def compute_split(
     Returns:
         Dict containing full split breakdown and participant share maps.
     """
-    if not isinstance(amount_inr, int) or isinstance(amount_inr, bool) or amount_inr < 0:
+    if (
+        not isinstance(amount_inr, int)
+        or isinstance(amount_inr, bool)
+        or amount_inr < 0
+    ):
         raise ValueError("amount_inr must be a non-negative integer")
 
     if not student_weights:
@@ -177,12 +181,20 @@ def compute_split(
             "weight": weight_display,
             "weight_share": round(float(weight_shares[uid]), 2),
             "equal_part": round(float(exact_equal_share), 2),
-            "weighted_part": round(float(weighted_part_total_f * weight_shares[uid]), 2),
+            "weighted_part": round(
+                float(weighted_part_total_f * weight_shares[uid]), 2
+            ),
             "rounding_adjustment": rounding_adj,
         }
 
     # Strict conservation assertion
-    assert sum(experts.values()) + sum(s["amount_inr"] for s in students.values()) + fee_inr + ai_reserve_inr == amount_inr
+    assert (
+        sum(experts.values())
+        + sum(s["amount_inr"] for s in students.values())
+        + fee_inr
+        + ai_reserve_inr
+        == amount_inr
+    )
 
     return {
         "amount_inr": amount_inr,

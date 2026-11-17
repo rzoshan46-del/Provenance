@@ -1,13 +1,12 @@
-from datetime import datetime, timezone
 import hashlib
 import json
-import sqlite3
-from typing import Any, Dict, Optional
-
 import re
 import unicodedata
+from datetime import datetime, timezone
+from typing import Any, Dict
 
 from fastapi import HTTPException
+
 from app.access import membership_state
 from app.db import execute, query_one
 
@@ -24,7 +23,9 @@ def validate_non_funded_rewards(rewards: str) -> None:
             )
     cleaned = re.sub(r"\bno\s+payment\b", "", rewards, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bunpaid\b", "", cleaned, flags=re.IGNORECASE)
-    m = re.search(r"\b(pay|paid|payment|salary|stipend|fee)\b", cleaned, flags=re.IGNORECASE)
+    m = re.search(
+        r"\b(pay|paid|payment|salary|stipend|fee)\b", cleaned, flags=re.IGNORECASE
+    )
     if m:
         raise HTTPException(
             status_code=400,
@@ -44,7 +45,13 @@ def create_project(sponsor: Any, fields: Dict[str, Any]) -> int:
     if not sponsor or sponsor["role"] != "sponsor":
         raise HTTPException(status_code=403, detail="Only sponsors can create projects")
 
-    required = ["title", "public_summary", "confidential_brief", "sensitivity_label", "engagement_model"]
+    required = [
+        "title",
+        "public_summary",
+        "confidential_brief",
+        "sensitivity_label",
+        "engagement_model",
+    ]
     for r in required:
         if not fields.get(r):
             raise HTTPException(status_code=400, detail=f"Missing required field: {r}")
@@ -61,7 +68,12 @@ def create_project(sponsor: Any, fields: Dict[str, Any]) -> int:
             detail=f"Invalid sensitivity_label '{sensitivity_label}', must be public|internal|confidential",
         )
 
-    if engagement_model not in ("funded", "stipend", "knowledge_sharing", "institutional_credit"):
+    if engagement_model not in (
+        "funded",
+        "stipend",
+        "knowledge_sharing",
+        "institutional_credit",
+    ):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid engagement_model '{engagement_model}'",
@@ -81,12 +93,24 @@ def create_project(sponsor: Any, fields: Dict[str, Any]) -> int:
                 else "UNPAID: recognition only",
             ),
             "scope": fields.get("scope", public_summary),
-            "people": fields.get("people", "1 sponsor, domain experts, verified students"),
-            "ip_publication": fields.get("ip_publication", "Open research publication with named attribution"),
-            "confidentiality": fields.get("confidentiality", "Confidential brief and datasets protected"),
-            "credit_split": fields.get("credit_split", "Calculated by split engine rules"),
-            "exit_disputes": fields.get("exit_disputes", "Disputes audited via immutable ledger"),
-            "commercialisation": fields.get("commercialisation", "Future commercialisation requires updated charter"),
+            "people": fields.get(
+                "people", "1 sponsor, domain experts, verified students"
+            ),
+            "ip_publication": fields.get(
+                "ip_publication", "Open research publication with named attribution"
+            ),
+            "confidentiality": fields.get(
+                "confidentiality", "Confidential brief and datasets protected"
+            ),
+            "credit_split": fields.get(
+                "credit_split", "Calculated by split engine rules"
+            ),
+            "exit_disputes": fields.get(
+                "exit_disputes", "Disputes audited via immutable ledger"
+            ),
+            "commercialisation": fields.get(
+                "commercialisation", "Future commercialisation requires updated charter"
+            ),
         }
 
     # Non-funded rewards validation (SPEC.md §21)
@@ -119,6 +143,7 @@ def create_project(sponsor: Any, fields: Dict[str, Any]) -> int:
     charter_hash = canonical_charter_hash(1, terms)
 
     import app.ledger as ledger
+
     ledger.append(
         action="project_posted",
         actor_id=sponsor["id"],
@@ -167,7 +192,9 @@ def publish_charter(user: Any, project_id: int, changes: Dict[str, Any]) -> int:
         raise HTTPException(status_code=404, detail="Project not found")
 
     if not user or user["role"] != "sponsor" or user["id"] != project["sponsor_id"]:
-        raise HTTPException(status_code=403, detail="Only the owning sponsor can publish a charter")
+        raise HTTPException(
+            status_code=403, detail="Only the owning sponsor can publish a charter"
+        )
 
     current_charter = query_one(
         "SELECT * FROM charters WHERE project_id = ? ORDER BY version DESC LIMIT 1",
@@ -183,14 +210,20 @@ def publish_charter(user: Any, project_id: int, changes: Dict[str, Any]) -> int:
     # Engagement model transition rules (SPEC.md §21)
     if new_model != current_model:
         # non-funded -> funded gives 400 (start a new project)
-        if current_model not in ("funded", "stipend") and new_model in ("funded", "stipend"):
+        if current_model not in ("funded", "stipend") and new_model in (
+            "funded",
+            "stipend",
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="non-funded to funded engagement model change is not permitted (start a new project)",
             )
 
         # funded -> non-funded
-        if current_model in ("funded", "stipend") and new_model not in ("funded", "stipend"):
+        if current_model in ("funded", "stipend") and new_model not in (
+            "funded",
+            "stipend",
+        ):
             change_note = str(changes.get("change_note", "")).strip()
             if not change_note:
                 raise HTTPException(
@@ -225,14 +258,19 @@ def publish_charter(user: Any, project_id: int, changes: Dict[str, Any]) -> int:
                 """,
                 (project_id,),
             )
-            execute("UPDATE milestones SET amount_inr = 0 WHERE project_id = ?", (project_id,))
+            execute(
+                "UPDATE milestones SET amount_inr = 0 WHERE project_id = ?",
+                (project_id,),
+            )
 
             # Replace rewards and credit_split
             if "rewards" in changes and str(changes["rewards"]).strip():
                 new_terms["rewards"] = str(changes["rewards"]).strip()
             else:
                 new_terms["rewards"] = "UNPAID: recognition only"
-            new_terms["credit_split"] = "Credit is shared by reviewed impact. No payment is offered or implied."
+            new_terms["credit_split"] = (
+                "Credit is shared by reviewed impact. No payment is offered or implied."
+            )
 
     # Validate non-funded rewards
     target_model = new_model
@@ -242,7 +280,11 @@ def publish_charter(user: Any, project_id: int, changes: Dict[str, Any]) -> int:
 
     new_terms["engagement_model"] = target_model
 
-    new_version = (current_charter["version"] + 1) if current_charter else (project["current_charter_version"] + 1)
+    new_version = (
+        (current_charter["version"] + 1)
+        if current_charter
+        else (project["current_charter_version"] + 1)
+    )
     charter_hash = canonical_charter_hash(new_version, new_terms)
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -264,6 +306,7 @@ def publish_charter(user: Any, project_id: int, changes: Dict[str, Any]) -> int:
     )
 
     import app.ledger as ledger
+
     ledger.append(
         action="charter_published",
         actor_id=user["id"],
@@ -282,7 +325,9 @@ def publish_charter(user: Any, project_id: int, changes: Dict[str, Any]) -> int:
     return new_version
 
 
-def join_project(user: Any, project_id: int, accept_charter: bool, ack_engagement_model: bool) -> Dict[str, Any]:
+def join_project(
+    user: Any, project_id: int, accept_charter: bool, ack_engagement_model: bool
+) -> Dict[str, Any]:
     """Join project by accepting charter and engagement model.
 
     Enforces rules in SPEC.md section 16 in exact order:
@@ -297,19 +342,27 @@ def join_project(user: Any, project_id: int, accept_charter: bool, ack_engagemen
         raise HTTPException(status_code=404, detail="Project not found")
 
     if not user:
-        raise HTTPException(status_code=403, detail="Authentication required to join project")
+        raise HTTPException(
+            status_code=403, detail="Authentication required to join project"
+        )
 
     # 1. role is student or expert (403)
     if user["role"] not in ("student", "expert"):
-        raise HTTPException(status_code=403, detail="Only students and experts can join projects")
+        raise HTTPException(
+            status_code=403, detail="Only students and experts can join projects"
+        )
 
     # 2. verification_level >= 1 (403)
     if user["verification_level"] < 1:
-        raise HTTPException(status_code=403, detail="Verification level 1 or higher required to join")
+        raise HTTPException(
+            status_code=403, detail="Verification level 1 or higher required to join"
+        )
 
     # 3. expert conflict of interest (403, "conflict of interest")
     if user["role"] == "expert":
-        sponsor = query_one("SELECT * FROM users WHERE id = ?", (project["sponsor_id"],))
+        sponsor = query_one(
+            "SELECT * FROM users WHERE id = ?", (project["sponsor_id"],)
+        )
         sponsor_institution = sponsor["institution"] if sponsor else None
         conflict_orgs = []
         if user["conflict_orgs"]:
@@ -411,6 +464,7 @@ def leave_project(user: Any, project_id: int) -> Dict[str, Any]:
 
     action = "member_left" if prev_state == "member" else "charter_declined"
     import app.ledger as ledger
+
     ledger.append(
         action=action,
         actor_id=user["id"],

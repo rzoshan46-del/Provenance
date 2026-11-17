@@ -1,18 +1,18 @@
-"""app/ai/matching.py — Candidate matching and team recommendation service.
-"""
+"""app/ai/matching.py — Candidate matching and team recommendation service."""
+
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import HTTPException
 
-from app.ai.agents import get_or_create_agent
 import app.ai.gateway as gateway
+from app.ai.agents import get_or_create_agent
 from app.db import query_all, query_one
 
 
 def recommend(user: Any, project_id: int) -> Dict[str, Any]:
     """Rank and recommend 1 expert and 3 students for a project.
-    
+
     Rules (SPEC §19):
     - Only the owning sponsor can run matching (403).
     - Required skills = union (lower-cased) of skills from project's proposed and open milestones.
@@ -30,7 +30,9 @@ def recommend(user: Any, project_id: int) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="Project not found")
 
     if not user or user["id"] != project["sponsor_id"]:
-        raise HTTPException(status_code=403, detail="Only the owning sponsor can run candidate matching")
+        raise HTTPException(
+            status_code=403, detail="Only the owning sponsor can run candidate matching"
+        )
 
     # Aggregate required skills from proposed and open milestones
     ms_rows = query_all(
@@ -49,7 +51,9 @@ def recommend(user: Any, project_id: int) -> Dict[str, Any]:
             pass
 
     if not all_skills:
-        raise HTTPException(status_code=409, detail="No required skills found on project milestones")
+        raise HTTPException(
+            status_code=409, detail="No required skills found on project milestones"
+        )
 
     required_skills = sorted(list(all_skills))
 
@@ -76,44 +80,59 @@ def recommend(user: Any, project_id: int) -> Dict[str, Any]:
 
         # Check conflict orgs
         try:
-            conflict_orgs = [str(x).strip().lower() for x in json.loads(u.get("conflict_orgs") or "[]")]
+            conflict_orgs = [
+                str(x).strip().lower()
+                for x in json.loads(u.get("conflict_orgs") or "[]")
+            ]
         except Exception:
             conflict_orgs = []
 
         # 1. Verification level check
         if v_level < 1:
-            excluded.append({
-                "user_id": u_id,
-                "name": u_name,
-                "role": u_role,
-                "reason": "verification level too low",
-            })
+            excluded.append(
+                {
+                    "user_id": u_id,
+                    "name": u_name,
+                    "role": u_role,
+                    "reason": "verification level too low",
+                }
+            )
             continue
 
         # 2. Conflict of interest for experts
         if u_role == "expert" and sponsor_institution:
             if sponsor_institution.strip().lower() in conflict_orgs:
-                excluded.append({
-                    "user_id": u_id,
-                    "name": u_name,
-                    "role": u_role,
-                    "reason": "conflict of interest",
-                })
+                excluded.append(
+                    {
+                        "user_id": u_id,
+                        "name": u_name,
+                        "role": u_role,
+                        "reason": "conflict of interest",
+                    }
+                )
                 continue
 
         # 3. Guardian consent for minors on funded projects
-        if is_funded and int(u.get("is_minor", 0)) == 1 and int(u.get("guardian_consent", 0)) != 1:
-            excluded.append({
-                "user_id": u_id,
-                "name": u_name,
-                "role": u_role,
-                "reason": "guardian consent required",
-            })
+        if (
+            is_funded
+            and int(u.get("is_minor", 0)) == 1
+            and int(u.get("guardian_consent", 0)) != 1
+        ):
+            excluded.append(
+                {
+                    "user_id": u_id,
+                    "name": u_name,
+                    "role": u_role,
+                    "reason": "guardian consent required",
+                }
+            )
             continue
 
         # Compute skill overlap
         try:
-            user_skills = [str(s).strip().lower() for s in json.loads(u.get("skills") or "[]")]
+            user_skills = [
+                str(s).strip().lower() for s in json.loads(u.get("skills") or "[]")
+            ]
         except Exception:
             user_skills = []
 
@@ -160,8 +179,12 @@ def recommend(user: Any, project_id: int) -> Dict[str, Any]:
             eligible_students.append(candidate_obj)
 
     # Sort candidates: (-score, -verification_level, user_id)
-    eligible_experts.sort(key=lambda c: (-c["score"], -c["verification_level"], c["user_id"]))
-    eligible_students.sort(key=lambda c: (-c["score"], -c["verification_level"], c["user_id"]))
+    eligible_experts.sort(
+        key=lambda c: (-c["score"], -c["verification_level"], c["user_id"])
+    )
+    eligible_students.sort(
+        key=lambda c: (-c["score"], -c["verification_level"], c["user_id"])
+    )
 
     top_expert = eligible_experts[0] if eligible_experts else None
     top_students = eligible_students[:3]
@@ -196,7 +219,7 @@ def recommend(user: Any, project_id: int) -> Dict[str, Any]:
 
 def latest(user: Any, project_id: int) -> Dict[str, Any]:
     """Retrieve the latest matching recommendation for a project.
-    
+
     Accessible to owning sponsor and admin only (403 otherwise).
     """
     project = query_one("SELECT * FROM projects WHERE id = ?", (project_id,))
@@ -206,7 +229,9 @@ def latest(user: Any, project_id: int) -> Dict[str, Any]:
     is_sponsor = user and user["id"] == project["sponsor_id"]
     is_admin = user and user["role"] == "admin"
     if not (is_sponsor or is_admin):
-        raise HTTPException(status_code=403, detail="Access denied to matching recommendations")
+        raise HTTPException(
+            status_code=403, detail="Access denied to matching recommendations"
+        )
 
     row = query_one(
         """
@@ -217,7 +242,9 @@ def latest(user: Any, project_id: int) -> Dict[str, Any]:
         (project_id,),
     )
     if not row:
-        raise HTTPException(status_code=404, detail="No matching recommendations found for this project")
+        raise HTTPException(
+            status_code=404, detail="No matching recommendations found for this project"
+        )
 
     try:
         return json.loads(row["response_summary"])

@@ -2,6 +2,7 @@
 
 MOCKED heuristic: production would use a vetted AI-content classifier.
 """
+
 from typing import List
 
 _STRONG_AI_MARKERS = [
@@ -15,7 +16,7 @@ _STRONG_AI_MARKERS = [
 
 def ai_markers(text: str) -> List[str]:
     """Scan text for strong AI language markers (case-insensitive).
-    
+
     Returns list of matched marker strings found.
     """
     # MOCKED heuristic: production would use a vetted AI-content classifier

@@ -7,10 +7,11 @@ SPEC.md §20:
 - compare(new_text, other_text) -> {jaccard, cosine, containment, score}
 - FLAG_THRESHOLD = 0.6
 """
-from collections import Counter
+
 import math
 import re
-from typing import Any, Dict, List, Set, Tuple
+from collections import Counter
+from typing import Dict, List, Set, Tuple
 
 FLAG_THRESHOLD: float = 0.6
 
@@ -31,7 +32,7 @@ def shingles(tokens: List[str], k: int = 3) -> Set[Tuple[str, ...]]:
 
 def compare(new_text: str, other_text: str) -> Dict[str, float]:
     """Compare two texts for similarity and containment.
-    
+
     Returns:
         {
             "jaccard": float,

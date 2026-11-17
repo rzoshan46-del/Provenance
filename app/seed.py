@@ -1,4 +1,5 @@
 import json
+
 from app.db import execute, query_one
 
 SYNTHETIC_USERS = [
@@ -12,7 +13,9 @@ SYNTHETIC_USERS = [
         "is_minor": 0,
         "guardian_consent": 1,
         "conflict_orgs": json.dumps([]),
-        "skills": json.dumps(["governance", "audit", "dispute_resolution", "identity_verification"]),
+        "skills": json.dumps(
+            ["governance", "audit", "dispute_resolution", "identity_verification"]
+        ),
         "bio": "System administrator and integrity auditor for Provenance ecosystem.",
     },
     {
@@ -25,7 +28,14 @@ SYNTHETIC_USERS = [
         "is_minor": 0,
         "guardian_consent": 1,
         "conflict_orgs": json.dumps([]),
-        "skills": json.dumps(["clinical research", "project sponsorship", "ophthalmology", "budget_planning"]),
+        "skills": json.dumps(
+            [
+                "clinical research",
+                "project sponsorship",
+                "ophthalmology",
+                "budget_planning",
+            ]
+        ),
         "bio": "Lead clinical innovator at MedVision Labs sponsoring edge AI healthcare diagnostics.",
     },
     {
@@ -51,7 +61,14 @@ SYNTHETIC_USERS = [
         "is_minor": 0,
         "guardian_consent": 1,
         "conflict_orgs": json.dumps(["MedVision Labs"]),
-        "skills": json.dumps(["medical imaging", "deep learning", "edge deployment", "model quantization"]),
+        "skills": json.dumps(
+            [
+                "medical imaging",
+                "deep learning",
+                "edge deployment",
+                "model quantization",
+            ]
+        ),
         "bio": "Edge AI specialist with prior advisory affiliation at MedVision Labs.",
     },
     {
@@ -221,7 +238,9 @@ def seed_projects() -> None:
         (1, 1, json.dumps(p1_terms), p1_hash, now_iso),
     )
     import hashlib
+
     import app.ledger as ledger
+
     p1_brief_hash = hashlib.sha256(p1_confidential_brief.encode("utf-8")).hexdigest()
     ledger.append(
         action="project_posted",
@@ -309,4 +328,3 @@ def seed_projects() -> None:
             "charter_hash": p2_hash,
         },
     )
-

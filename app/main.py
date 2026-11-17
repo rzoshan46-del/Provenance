@@ -1,7 +1,7 @@
-from contextlib import asynccontextmanager
 import json
 import os
 import sqlite3
+from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
 
 from authlib.integrations.starlette_client import OAuth
@@ -13,8 +13,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.access import can_view, membership_state
-from app.config import get_auth_mode, get_base_url, get_session_secret, google_auth_enabled
-from app.db import get_conn, init_db, query_all, query_one
+from app.config import (
+    get_auth_mode,
+    get_base_url,
+    get_session_secret,
+    google_auth_enabled,
+)
+from app.db import init_db, query_all, query_one
 from app.deps import current_user, require_role
 from app.seed import seed_projects, seed_users
 from app.services.projects import create_project, join_project, publish_charter
@@ -27,6 +32,7 @@ async def lifespan(app: FastAPI):
     seed_users()
     seed_projects()
     import app.ledger as ledger
+
     ledger.ensure_genesis()
     yield
 
@@ -89,18 +95,29 @@ templates.env.filters["inr"] = inr_format
 # Jinja2 globals — callable from any template
 import app.credits as _credits_mod
 import app.ledger as _ledger_mod
-templates.env.globals["user_credits"] = _credits_mod.total  # user_credits(user_id) → int
+
+templates.env.globals["user_credits"] = (
+    _credits_mod.total
+)  # user_credits(user_id) → int
 templates.env.globals["demo_mode"] = _ledger_mod.demo_mode
 # Public certificates: /verify, /certificate, QR code (app/certificates.py)
 from app.certificates import build_router as _build_cert_router
+
 app.include_router(_build_cert_router(templates))
 # Project review queue + admin console (app/reviews.py, app/admin_console.py)
 from app.reviews import (
     filter_listing as _filter_review_listing,
+)
+from app.reviews import (
     install as _install_reviews,
+)
+from app.reviews import (
     mark_pending as _mark_pending,
+)
+from app.reviews import (
     mark_pending_api as _mark_pending_api,
 )
+
 _install_reviews(app, templates)
 
 
@@ -125,6 +142,7 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
 # ─────────────────────────────────────────────
 # Core / auth routes
 # ─────────────────────────────────────────────
+
 
 @app.get("/health")
 def health():
@@ -155,6 +173,7 @@ def home(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
             skills = []
 
     import app.ledger as ledger
+
     ledger_info = ledger.verify()
 
     project_count_row = query_one("SELECT count(*) as c FROM projects")
@@ -209,14 +228,22 @@ def login_page(request: Request, user: Optional[sqlite3.Row] = Depends(current_u
 @app.get("/switch/{user_id}")
 def switch_persona(user_id: int, next: Optional[str] = None):
     if get_auth_mode() != "demo":
-        raise HTTPException(status_code=403, detail="Demo persona switching is disabled in production auth mode")
+        raise HTTPException(
+            status_code=403,
+            detail="Demo persona switching is disabled in production auth mode",
+        )
 
     target_user = query_one("SELECT * FROM users WHERE id = ?", (user_id,))
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
 
     target_path = "/"
-    if next and next.startswith("/") and not next.startswith("//") and "://" not in next:
+    if (
+        next
+        and next.startswith("/")
+        and not next.startswith("//")
+        and "://" not in next
+    ):
         target_path = next
 
     response = RedirectResponse(url=target_path, status_code=303)
@@ -227,7 +254,10 @@ def switch_persona(user_id: int, next: Optional[str] = None):
 @app.get("/auth/google/login")
 async def google_login(request: Request):
     if not google_auth_enabled():
-        raise HTTPException(status_code=503, detail="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.")
+        raise HTTPException(
+            status_code=503,
+            detail="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+        )
     redirect_uri = f"{get_base_url()}/auth/google/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
@@ -235,31 +265,49 @@ async def google_login(request: Request):
 @app.get("/auth/google/callback")
 async def google_callback(request: Request):
     if not google_auth_enabled():
-        raise HTTPException(status_code=503, detail="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.")
+        raise HTTPException(
+            status_code=503,
+            detail="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+        )
 
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as exc:
-        raise HTTPException(status_code=401, detail=f"Google sign-in failed: {exc}") from exc
+        raise HTTPException(
+            status_code=401, detail=f"Google sign-in failed: {exc}"
+        ) from exc
 
     userinfo = token.get("userinfo")
     if not userinfo:
         try:
             userinfo = await oauth.google.userinfo(token=token)
         except Exception as exc:
-            raise HTTPException(status_code=401, detail=f"Google user info unavailable: {exc}") from exc
+            raise HTTPException(
+                status_code=401, detail=f"Google user info unavailable: {exc}"
+            ) from exc
 
     email = (userinfo.get("email") or "").strip().lower()
     if not email:
-        raise HTTPException(status_code=401, detail="Google account did not return an email address.")
+        raise HTTPException(
+            status_code=401, detail="Google account did not return an email address."
+        )
 
     user = query_one("SELECT * FROM users WHERE lower(email) = ?", (email,))
     if not user:
         # Keep production-safe defaults: no arbitrary account creation for unknown Google identities.
-        raise HTTPException(status_code=403, detail="This Google account is not registered for Provenance.")
+        raise HTTPException(
+            status_code=403,
+            detail="This Google account is not registered for Provenance.",
+        )
 
     response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(key="session_user_id", value=str(user["id"]), path="/", httponly=True, samesite="lax")
+    response.set_cookie(
+        key="session_user_id",
+        value=str(user["id"]),
+        path="/",
+        httponly=True,
+        samesite="lax",
+    )
     response.delete_cookie(key="persona_id", path="/")
     return response
 
@@ -278,8 +326,9 @@ def my_profile(request: Request, user: Optional[sqlite3.Row] = Depends(current_u
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     import app.credits as cr
+
     cr_total = cr.total(user["id"])
-    cr_hist  = cr.history(user["id"])
+    cr_hist = cr.history(user["id"])
     cr_break = cr.breakdown(user["id"])
 
     # User's skills
@@ -335,7 +384,9 @@ def my_profile(request: Request, user: Optional[sqlite3.Row] = Depends(current_u
 
 
 @app.get("/admin")
-def admin_console(request: Request, admin: sqlite3.Row = Depends(require_role("admin"))):
+def admin_console(
+    request: Request, admin: sqlite3.Row = Depends(require_role("admin"))
+):
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
     return templates.TemplateResponse(
         request,
@@ -390,6 +441,7 @@ def ledger(
     actor_type: Optional[str] = None,
 ):
     import app.ledger as ledger
+
     verify = ledger.verify()
 
     # Full chain for chain strip (ascending order)
@@ -466,12 +518,14 @@ def ledger(
         uid = u["id"]
         credits = credit_map.get(uid, 0)
         if credits > 0:
-            scorecard_rows.append({
-                "user_id": uid,
-                "name": u["name"],
-                "role": u["role"],
-                "credits": credits,
-            })
+            scorecard_rows.append(
+                {
+                    "user_id": uid,
+                    "name": u["name"],
+                    "role": u["role"],
+                    "credits": credits,
+                }
+            )
     scorecard_rows.sort(key=lambda x: x["credits"], reverse=True)
     max_credits = scorecard_rows[0]["credits"] if scorecard_rows else 1
     for row in scorecard_rows:
@@ -499,10 +553,10 @@ def ledger(
     )
 
 
-
 # ─────────────────────────────────────────────
 # Helper: build project list rows
 # ─────────────────────────────────────────────
+
 
 def _project_list_rows(user: Optional[Any]) -> list:
     """Return all projects joined with sponsor name."""
@@ -521,8 +575,11 @@ def _project_list_rows(user: Optional[Any]) -> list:
 # HTML Project routes (S1b)
 # ─────────────────────────────────────────────
 
+
 @app.get("/projects")
-def projects_list(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
+def projects_list(
+    request: Request, user: Optional[sqlite3.Row] = Depends(current_user)
+):
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
     projects = _filter_review_listing(_project_list_rows(user), user)
 
@@ -624,6 +681,7 @@ def _build_project_context(project_id: int, user: Optional[Any]) -> Dict[str, An
     brief_text = None
     if can_see_brief and project["confidential_brief"]:
         from app.integrity.service import protect
+
         brief_text = protect(
             viewer=user,
             owner_id=project["sponsor_id"],
@@ -663,6 +721,7 @@ def _build_project_context(project_id: int, user: Optional[Any]) -> Dict[str, An
     watermark_overlay = None
     if can_see_brief and user and user["id"] != project["sponsor_id"]:
         from datetime import datetime, timezone
+
         now_str = datetime.now(timezone.utc).strftime("%d %b %Y")
         watermark_overlay = f"Viewed by {user['name']} · {now_str}"
 
@@ -677,7 +736,9 @@ def _build_project_context(project_id: int, user: Optional[Any]) -> Dict[str, An
             try:
                 cur_terms = json.loads(charters[0]["terms_json"])
                 prev_terms = json.loads(charters[1]["terms_json"])
-                if cur_terms.get("engagement_model") != prev_terms.get("engagement_model"):
+                if cur_terms.get("engagement_model") != prev_terms.get(
+                    "engagement_model"
+                ):
                     model_changed = True
                     prev_model = prev_terms.get("engagement_model")
             except Exception:
@@ -721,7 +782,9 @@ def join_get(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     if not user or user["role"] not in ("student", "expert"):
-        raise HTTPException(status_code=403, detail="Only students and experts can join projects")
+        raise HTTPException(
+            status_code=403, detail="Only students and experts can join projects"
+        )
 
     project = query_one("SELECT * FROM projects WHERE id = ?", (project_id,))
     if not project:
@@ -763,7 +826,9 @@ async def join_post(
     ack_engagement_model: Optional[str] = Form(None),
 ):
     if not user or user["role"] not in ("student", "expert"):
-        raise HTTPException(status_code=403, detail="Only students and experts can join projects")
+        raise HTTPException(
+            status_code=403, detail="Only students and experts can join projects"
+        )
 
     project = query_one("SELECT * FROM projects WHERE id = ?", (project_id,))
     if not project:
@@ -812,6 +877,7 @@ def project_leave_post(
     if not user:
         raise HTTPException(status_code=403, detail="Authentication required")
     from app.services.projects import leave_project
+
     leave_project(user, project_id)
     return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
 
@@ -833,15 +899,24 @@ def _build_charter_versions(project_id: int) -> list:
             for key in all_keys:
                 before = prev_terms.get(key, "")
                 after = terms.get(key, "")
-                diff_rows.append({"key": key, "before": before, "after": after, "changed": before != after})
-        versions.append({
-            "id": ch["id"],
-            "version": ch["version"],
-            "hash": ch["hash"],
-            "published_at": ch["published_at"],
-            "terms": terms,
-            "diff_rows": diff_rows,
-        })
+                diff_rows.append(
+                    {
+                        "key": key,
+                        "before": before,
+                        "after": after,
+                        "changed": before != after,
+                    }
+                )
+        versions.append(
+            {
+                "id": ch["id"],
+                "version": ch["version"],
+                "hash": ch["hash"],
+                "published_at": ch["published_at"],
+                "terms": terms,
+                "diff_rows": diff_rows,
+            }
+        )
     # Return newest first
     versions.reverse()
     return versions
@@ -940,7 +1015,9 @@ def visibility_page(
     columns = []
     for u in all_users_rows:
         state = membership_state(project_id, u["id"])
-        columns.append({"id": u["id"], "name": u["name"], "role": u["role"], "state": state})
+        columns.append(
+            {"id": u["id"], "name": u["name"], "role": u["role"], "state": state}
+        )
 
     # Build matrix: {user_id or 'anonymous': {resource: bool}}
     matrix: Dict[Any, Dict[str, bool]] = {}
@@ -969,6 +1046,7 @@ def visibility_page(
 # ─────────────────────────────────────────────
 # JSON API routes (S1a — consumed by tests / future JS)
 # ─────────────────────────────────────────────
+
 
 @app.post("/api/projects")
 async def api_create_project(
@@ -1005,8 +1083,11 @@ def api_brief(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     if not can_view(user, project, "brief"):
-        raise HTTPException(status_code=403, detail="Access denied to confidential brief")
+        raise HTTPException(
+            status_code=403, detail="Access denied to confidential brief"
+        )
     from app.integrity.service import protect
+
     brief_text = protect(
         viewer=user,
         owner_id=project["sponsor_id"],
@@ -1071,6 +1152,7 @@ def api_leave_project(
     if not user:
         raise HTTPException(status_code=403, detail="Authentication required")
     from app.services.projects import leave_project
+
     res = leave_project(user, project_id)
     return JSONResponse(res, status_code=200)
 
@@ -1079,9 +1161,11 @@ def api_leave_project(
 # Ledger JSON API routes (S2)
 # ─────────────────────────────────────────────
 
+
 @app.get("/api/ledger/verify")
 def api_ledger_verify():
     import app.ledger as ledger
+
     return ledger.verify()
 
 
@@ -1091,6 +1175,7 @@ async def api_ledger_tamper(
     entry_id: Optional[int] = Form(None),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
     try:
@@ -1110,6 +1195,7 @@ async def api_ledger_tamper(
 @app.post("/api/ledger/restore")
 def api_ledger_restore():
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
     try:
@@ -1122,9 +1208,11 @@ def api_ledger_restore():
 @app.post("/api/demo/reset")
 def api_demo_reset():
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
     import app.demo as demo
+
     res = demo.reset()
     return JSONResponse(res, status_code=200)
 
@@ -1132,6 +1220,7 @@ def api_demo_reset():
 # ─────────────────────────────────────────────
 # Milestones & Escrow API routes (S3a)
 # ─────────────────────────────────────────────
+
 
 @app.post("/api/projects/{project_id}/milestones")
 async def api_create_milestone(
@@ -1166,7 +1255,10 @@ async def api_create_milestone(
             pass
 
     milestone_id = create_milestone(user, project_id, fields)
-    return JSONResponse({"status": "ok", "id": milestone_id, "milestone_id": milestone_id}, status_code=200)
+    return JSONResponse(
+        {"status": "ok", "id": milestone_id, "milestone_id": milestone_id},
+        status_code=200,
+    )
 
 
 @app.get("/api/projects/{project_id}/milestones")
@@ -1175,6 +1267,7 @@ def api_list_milestones(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.services.milestones import list_milestones
+
     return list_milestones(user, project_id)
 
 
@@ -1184,6 +1277,7 @@ def api_get_milestone(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.services.milestones import get_milestone
+
     return get_milestone(user, milestone_id)
 
 
@@ -1193,6 +1287,7 @@ def api_fund_milestone(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.services.escrow import fund_milestone
+
     result = fund_milestone(user, milestone_id)
     return JSONResponse(result, status_code=200)
 
@@ -1200,6 +1295,7 @@ def api_fund_milestone(
 # ─────────────────────────────────────────────
 # Contributions, Reviews, Acceptance & Credentials (S3b)
 # ─────────────────────────────────────────────
+
 
 @app.post("/api/milestones/{milestone_id}/contributions")
 async def api_submit_contribution(
@@ -1237,6 +1333,7 @@ def api_list_contributions(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.services.contributions import list_contributions
+
     return list_contributions(user, milestone_id)
 
 
@@ -1269,7 +1366,9 @@ async def api_review_contribution(
         except Exception:
             pass
 
-    res = review_contribution(user, contribution_id, dec_val, score_val, reasons_val, criteria_val)
+    res = review_contribution(
+        user, contribution_id, dec_val, score_val, reasons_val, criteria_val
+    )
     return JSONResponse(res, status_code=200)
 
 
@@ -1279,6 +1378,7 @@ def api_contribution_integrity(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.integrity.service import integrity_report
+
     res = integrity_report(user, contribution_id)
     return JSONResponse(res, status_code=200)
 
@@ -1307,6 +1407,7 @@ async def api_integrity_check(
             pass
 
     from app.integrity.service import preview_check
+
     res = preview_check(user, text_val, ai_decl_val, milestone_id_val)
     return JSONResponse(res, status_code=200)
 
@@ -1328,6 +1429,7 @@ async def api_integrity_authorship(
             pass
 
     from app.integrity.service import authorship_lookup
+
     res = authorship_lookup(user, text_val)
     return JSONResponse(res, status_code=200)
 
@@ -1349,6 +1451,7 @@ async def api_integrity_trace(
             pass
 
     from app.integrity.service import trace
+
     res = trace(user, text_val)
     return JSONResponse(res, status_code=200)
 
@@ -1359,6 +1462,7 @@ def api_submit_milestone(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.services.milestones import submit_milestone
+
     res = submit_milestone(user, milestone_id)
     return JSONResponse(res, status_code=200)
 
@@ -1369,6 +1473,7 @@ def api_accept_milestone(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.services.milestones import accept_milestone
+
     res = accept_milestone(user, milestone_id)
     return JSONResponse(res, status_code=200)
 
@@ -1381,6 +1486,7 @@ async def api_simulate_days(
     days: Optional[int] = Form(None),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
 
@@ -1412,7 +1518,8 @@ async def api_simulate_days(
     else:
         sim_days = int(sim_days)
 
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
+
     from app.services.milestones import auto_accept_overdue
 
     milestone = query_one("SELECT * FROM milestones WHERE id = ?", (milestone_id,))
@@ -1441,7 +1548,9 @@ async def api_simulate_days(
             continue
 
     if not sub_entry:
-        raise HTTPException(status_code=409, detail="No submission timestamp found in ledger")
+        raise HTTPException(
+            status_code=409, detail="No submission timestamp found in ledger"
+        )
 
     ts_str = sub_entry["timestamp"]
     if ts_str.endswith("Z"):
@@ -1453,7 +1562,6 @@ async def api_simulate_days(
     return JSONResponse(result, status_code=200)
 
 
-
 @app.get("/api/milestones/{milestone_id}/receipt")
 def api_milestone_receipt(
     milestone_id: int,
@@ -1463,12 +1571,16 @@ def api_milestone_receipt(
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     if not can_view(user, project, "milestones"):
-        raise HTTPException(status_code=403, detail="Access denied to milestone receipt")
+        raise HTTPException(
+            status_code=403, detail="Access denied to milestone receipt"
+        )
 
     from app.services import payouts
 
@@ -1525,6 +1637,7 @@ def api_my_credentials(user: Optional[sqlite3.Row] = Depends(current_user)):
 # HTML Routes: Milestones, Escrow, Receipts & Credentials (S3c)
 # ─────────────────────────────────────────────
 
+
 def _render_milestones_page(
     request: Request,
     project_id: int,
@@ -1545,14 +1658,17 @@ def _render_milestones_page(
     milestones_data = []
     has_non_owner_view = False
     if can_see_milestones:
-        from app.services.milestones import list_milestones
-        from app.services.contributions import list_contributions
         from app.integrity.service import integrity_report
+        from app.services.contributions import list_contributions
+        from app.services.milestones import list_milestones
+
         raw_ms = list_milestones(user, project_id)
         for ms in raw_ms:
             ms_dict = dict(ms)
             contribs = list_contributions(user, ms["id"])
-            ms_dict["has_flagged"] = any(c.get("review_status") == "flagged" for c in contribs)
+            ms_dict["has_flagged"] = any(
+                c.get("review_status") == "flagged" for c in contribs
+            )
             for c in contribs:
                 if user and c.get("author_id") != user["id"]:
                     has_non_owner_view = True
@@ -1567,6 +1683,7 @@ def _render_milestones_page(
     watermark_overlay = None
     if can_see_milestones and user and has_non_owner_view:
         from datetime import datetime, timezone
+
         now_str = datetime.now(timezone.utc).strftime("%d %b %Y")
         watermark_overlay = f"Viewed by {user['name']} · {now_str}"
 
@@ -1583,7 +1700,9 @@ def _render_milestones_page(
             "milestones": milestones_data,
             "user_membership": u_membership,
             "is_sponsor": bool(user and user["id"] == project["sponsor_id"]),
-            "is_expert": bool(user and user["role"] == "expert" and u_membership == "member"),
+            "is_expert": bool(
+                user and user["role"] == "expert" and u_membership == "member"
+            ),
             "is_member": bool(user and u_membership == "member"),
             "watermark_overlay": watermark_overlay,
             "error": error,
@@ -1614,6 +1733,7 @@ async def project_milestones_create_post(
     acceptance_window_days: int = Form(7),
 ):
     from app.services.milestones import create_milestone
+
     fields = {
         "title": title,
         "deliverables": deliverables,
@@ -1624,9 +1744,13 @@ async def project_milestones_create_post(
     }
     try:
         create_milestone(user, project_id, fields)
-        return RedirectResponse(url=f"/projects/{project_id}/milestones", status_code=303)
+        return RedirectResponse(
+            url=f"/projects/{project_id}/milestones", status_code=303
+        )
     except HTTPException as exc:
-        return _render_milestones_page(request, project_id, user, error=exc.detail, status_code=exc.status_code)
+        return _render_milestones_page(
+            request, project_id, user, error=exc.detail, status_code=exc.status_code
+        )
 
 
 @app.post("/milestones/{milestone_id}/fund")
@@ -1641,11 +1765,16 @@ def milestone_fund_post(
         raise HTTPException(status_code=404, detail="Milestone not found")
 
     from app.services.escrow import fund_milestone
+
     try:
         fund_milestone(user, milestone_id)
-        return RedirectResponse(url=f"/projects/{project_id}/milestones", status_code=303)
+        return RedirectResponse(
+            url=f"/projects/{project_id}/milestones", status_code=303
+        )
     except HTTPException as exc:
-        return _render_milestones_page(request, project_id, user, error=exc.detail, status_code=exc.status_code)
+        return _render_milestones_page(
+            request, project_id, user, error=exc.detail, status_code=exc.status_code
+        )
 
 
 @app.post("/milestones/{milestone_id}/contributions")
@@ -1663,11 +1792,16 @@ async def milestone_contributions_post(
         raise HTTPException(status_code=404, detail="Milestone not found")
 
     from app.services.contributions import submit_contribution
+
     try:
         submit_contribution(user, milestone_id, title, text, ai_declaration)
-        return RedirectResponse(url=f"/projects/{project_id}/milestones", status_code=303)
+        return RedirectResponse(
+            url=f"/projects/{project_id}/milestones", status_code=303
+        )
     except HTTPException as exc:
-        return _render_milestones_page(request, project_id, user, error=exc.detail, status_code=exc.status_code)
+        return _render_milestones_page(
+            request, project_id, user, error=exc.detail, status_code=exc.status_code
+        )
 
 
 @app.post("/contributions/{contribution_id}/review")
@@ -1680,20 +1814,31 @@ async def contribution_review_post(
     reasons: Optional[str] = Form(None),
     criteria_ref: Optional[str] = Form(None),
 ):
-    contrib = query_one("SELECT milestone_id FROM contributions WHERE id = ?", (contribution_id,))
+    contrib = query_one(
+        "SELECT milestone_id FROM contributions WHERE id = ?", (contribution_id,)
+    )
     if not contrib:
         raise HTTPException(status_code=404, detail="Contribution not found")
-    ms = query_one("SELECT project_id FROM milestones WHERE id = ?", (contrib["milestone_id"],))
+    ms = query_one(
+        "SELECT project_id FROM milestones WHERE id = ?", (contrib["milestone_id"],)
+    )
     project_id = ms["project_id"] if ms else None
     if not project_id:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
     from app.services.contributions import review_contribution
+
     try:
-        review_contribution(user, contribution_id, decision, impact_score, reasons, criteria_ref)
-        return RedirectResponse(url=f"/projects/{project_id}/milestones", status_code=303)
+        review_contribution(
+            user, contribution_id, decision, impact_score, reasons, criteria_ref
+        )
+        return RedirectResponse(
+            url=f"/projects/{project_id}/milestones", status_code=303
+        )
     except HTTPException as exc:
-        return _render_milestones_page(request, project_id, user, error=exc.detail, status_code=exc.status_code)
+        return _render_milestones_page(
+            request, project_id, user, error=exc.detail, status_code=exc.status_code
+        )
 
 
 @app.post("/milestones/{milestone_id}/submit")
@@ -1708,11 +1853,16 @@ def milestone_submit_post(
         raise HTTPException(status_code=404, detail="Milestone not found")
 
     from app.services.milestones import submit_milestone
+
     try:
         submit_milestone(user, milestone_id)
-        return RedirectResponse(url=f"/projects/{project_id}/milestones", status_code=303)
+        return RedirectResponse(
+            url=f"/projects/{project_id}/milestones", status_code=303
+        )
     except HTTPException as exc:
-        return _render_milestones_page(request, project_id, user, error=exc.detail, status_code=exc.status_code)
+        return _render_milestones_page(
+            request, project_id, user, error=exc.detail, status_code=exc.status_code
+        )
 
 
 @app.post("/milestones/{milestone_id}/accept")
@@ -1727,11 +1877,16 @@ def milestone_accept_post(
         raise HTTPException(status_code=404, detail="Milestone not found")
 
     from app.services.milestones import accept_milestone
+
     try:
         accept_milestone(user, milestone_id)
-        return RedirectResponse(url=f"/milestones/{milestone_id}/receipt", status_code=303)
+        return RedirectResponse(
+            url=f"/milestones/{milestone_id}/receipt", status_code=303
+        )
     except HTTPException as exc:
-        return _render_milestones_page(request, project_id, user, error=exc.detail, status_code=exc.status_code)
+        return _render_milestones_page(
+            request, project_id, user, error=exc.detail, status_code=exc.status_code
+        )
 
 
 @app.post("/milestones/{milestone_id}/simulate-days")
@@ -1742,6 +1897,7 @@ async def milestone_simulate_days_post(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
     if not user or user["role"] != "admin":
@@ -1753,6 +1909,7 @@ async def milestone_simulate_days_post(
         raise HTTPException(status_code=404, detail="Milestone not found")
 
     from datetime import datetime, timedelta
+
     from app.services.milestones import auto_accept_overdue
 
     sub_entries = query_all(
@@ -1771,7 +1928,13 @@ async def milestone_simulate_days_post(
             continue
 
     if not sub_entry:
-        return _render_milestones_page(request, project_id, user, error="No submission timestamp found in ledger", status_code=409)
+        return _render_milestones_page(
+            request,
+            project_id,
+            user,
+            error="No submission timestamp found in ledger",
+            status_code=409,
+        )
 
     ts_str = sub_entry["timestamp"]
     if ts_str.endswith("Z"):
@@ -1781,9 +1944,13 @@ async def milestone_simulate_days_post(
 
     try:
         auto_accept_overdue(milestone_id, now=simulated_now)
-        return RedirectResponse(url=f"/projects/{project_id}/milestones", status_code=303)
+        return RedirectResponse(
+            url=f"/projects/{project_id}/milestones", status_code=303
+        )
     except HTTPException as exc:
-        return _render_milestones_page(request, project_id, user, error=exc.detail, status_code=exc.status_code)
+        return _render_milestones_page(
+            request, project_id, user, error=exc.detail, status_code=exc.status_code
+        )
 
 
 @app.get("/milestones/{milestone_id}/receipt")
@@ -1796,7 +1963,9 @@ def milestone_receipt_page(
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -1874,6 +2043,7 @@ def credentials_page(
 # Module S4a: AI Scoping, Matching & Calls API
 # ─────────────────────────────────────────────
 
+
 @app.post("/api/projects/{project_id}/scope")
 async def api_scope_milestones(
     project_id: int,
@@ -1882,6 +2052,7 @@ async def api_scope_milestones(
     budget_inr: Any = Form(None),
 ):
     from app.ai.scoping import propose_milestones
+
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
         try:
@@ -1903,6 +2074,7 @@ async def api_approve_milestone(
     amount_inr: Any = Form(None),
 ):
     from app.services.milestones import approve_milestone
+
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
         try:
@@ -1922,6 +2094,7 @@ def api_match_recommend(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.ai.matching import recommend
+
     res = recommend(user, project_id)
     return JSONResponse(res, status_code=200)
 
@@ -1932,6 +2105,7 @@ def api_match_latest(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.ai.matching import latest
+
     res = latest(user, project_id)
     return JSONResponse(res, status_code=200)
 
@@ -1947,7 +2121,9 @@ def api_get_ai_calls(
 
     # Visible to owning sponsor, members and admin (SPEC §19, Check 87)
     if not can_view(user, project, "milestones"):
-        raise HTTPException(status_code=403, detail="Access denied to AI calls audit log")
+        raise HTTPException(
+            status_code=403, detail="Access denied to AI calls audit log"
+        )
 
     rows = query_all(
         """
@@ -1972,19 +2148,20 @@ def api_get_ai_calls(
             pass
 
         status = ps.get("status", "done")
-        result.append({
-            "id": r["id"],
-            "created_at": r["created_at"],
-            "agent_name": r["agent_name"] or "System Agent",
-            "human_owner_name": r["human_owner_name"] or "System",
-            "sensitivity_label": r["sensitivity_label"],
-            "model_route": r["model_route"],
-            "prompt_summary": ps,
-            "status": status,
-        })
+        result.append(
+            {
+                "id": r["id"],
+                "created_at": r["created_at"],
+                "agent_name": r["agent_name"] or "System Agent",
+                "human_owner_name": r["human_owner_name"] or "System",
+                "sensitivity_label": r["sensitivity_label"],
+                "model_route": r["model_route"],
+                "prompt_summary": ps,
+                "status": status,
+            }
+        )
 
     return JSONResponse(result, status_code=200)
-
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -2056,6 +2233,7 @@ async def api_reject_agent_action(
 # S4c — AI HTML pages: scoping, matching, workspace, firewall
 # ─────────────────────────────────────────────
 
+
 def _ai_call_info(project_id: int, task: str) -> Optional[dict]:
     """Return a small dict with agent/owner/route info from the latest ai_call for a task."""
     row = query_one(
@@ -2093,20 +2271,28 @@ def _scoping_context(request: Request, project_id: int, user: Any) -> dict:
         raise HTTPException(status_code=404, detail="Project not found")
     sponsor = query_one("SELECT * FROM users WHERE id = ?", (project["sponsor_id"],))
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
-    can_scope = bool(user and (user["id"] == project["sponsor_id"] or user["role"] == "admin"))
+    can_scope = bool(
+        user and (user["id"] == project["sponsor_id"] or user["role"] == "admin")
+    )
     is_funded = project["engagement_model"] in ("funded", "stipend")
     proposed = []
     opened = []
     ai_info = None
     if can_scope:
-        proposed = [dict(r) for r in query_all(
-            "SELECT * FROM milestones WHERE project_id = ? AND status = 'proposed' ORDER BY id ASC",
-            (project_id,),
-        )]
-        opened = [dict(r) for r in query_all(
-            "SELECT * FROM milestones WHERE project_id = ? AND status = 'open' ORDER BY id ASC",
-            (project_id,),
-        )]
+        proposed = [
+            dict(r)
+            for r in query_all(
+                "SELECT * FROM milestones WHERE project_id = ? AND status = 'proposed' ORDER BY id ASC",
+                (project_id,),
+            )
+        ]
+        opened = [
+            dict(r)
+            for r in query_all(
+                "SELECT * FROM milestones WHERE project_id = ? AND status = 'open' ORDER BY id ASC",
+                (project_id,),
+            )
+        ]
         ai_info = _ai_call_info(project_id, "scoping")
     return {
         "project": project,
@@ -2141,6 +2327,7 @@ async def ui_scoping_post(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.ai.scoping import propose_milestones
+
     try:
         propose_milestones(user, project_id, budget_inr=budget_inr)
         return RedirectResponse(url=f"/projects/{project_id}/scoping", status_code=303)
@@ -2148,7 +2335,9 @@ async def ui_scoping_post(
         ctx = _scoping_context(request, project_id, user)
         ctx["error"] = e.detail
         ctx["error_code"] = e.status_code
-        return templates.TemplateResponse(request, "scoping.html", ctx, status_code=e.status_code)
+        return templates.TemplateResponse(
+            request, "scoping.html", ctx, status_code=e.status_code
+        )
 
 
 @app.post("/milestones/{milestone_id}/approve-ui")
@@ -2159,6 +2348,7 @@ async def ui_approve_milestone(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.services.milestones import approve_milestone
+
     milestone = query_one("SELECT * FROM milestones WHERE id = ?", (milestone_id,))
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
@@ -2171,21 +2361,27 @@ async def ui_approve_milestone(
         ctx = _scoping_context(request, project_id, user)
         ctx["error"] = e.detail
         ctx["error_code"] = e.status_code
-        return templates.TemplateResponse(request, "scoping.html", ctx, status_code=e.status_code)
+        return templates.TemplateResponse(
+            request, "scoping.html", ctx, status_code=e.status_code
+        )
 
 
 # ── Matching ──
+
 
 def _matching_context(request: Request, project_id: int, user: Any) -> dict:
     project = query_one("SELECT * FROM projects WHERE id = ?", (project_id,))
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
-    can_match = bool(user and (user["id"] == project["sponsor_id"] or user["role"] == "admin"))
+    can_match = bool(
+        user and (user["id"] == project["sponsor_id"] or user["role"] == "admin")
+    )
     match_result = None
     ai_info = None
     if can_match:
         from app.ai.matching import latest as match_latest
+
         try:
             match_result = match_latest(user, project_id)
         except HTTPException:
@@ -2220,6 +2416,7 @@ async def ui_matching_post(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.ai.matching import recommend
+
     try:
         recommend(user, project_id)
         return RedirectResponse(url=f"/projects/{project_id}/matching", status_code=303)
@@ -2227,10 +2424,13 @@ async def ui_matching_post(
         ctx = _matching_context(request, project_id, user)
         ctx["error"] = e.detail
         ctx["error_code"] = e.status_code
-        return templates.TemplateResponse(request, "matching.html", ctx, status_code=e.status_code)
+        return templates.TemplateResponse(
+            request, "matching.html", ctx, status_code=e.status_code
+        )
 
 
 # ── Workspace ──
+
 
 def _workspace_context(request: Request, project_id: int, user: Any) -> dict:
     project = query_one("SELECT * FROM projects WHERE id = ?", (project_id,))
@@ -2239,20 +2439,23 @@ def _workspace_context(request: Request, project_id: int, user: Any) -> dict:
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
     can_access = can_view(user, project, "milestones")
     is_member = bool(
-        user and user["role"] in ("student", "expert")
+        user
+        and user["role"] in ("student", "expert")
         and membership_state(project_id, user["id"]) == "member"
     )
     actions = []
     open_milestones = []
     if can_access:
         from app.ai import workspace as workspace_mod2
+
         try:
             actions = workspace_mod2.list_actions(user, project_id)
         except HTTPException:
             actions = []
         if is_member:
             open_milestones = [
-                dict(r) for r in query_all(
+                dict(r)
+                for r in query_all(
                     "SELECT * FROM milestones WHERE project_id = ? AND status = 'open' ORDER BY id ASC",
                     (project_id,),
                 )
@@ -2290,17 +2493,22 @@ async def ui_workspace_post(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.ai import workspace as workspace_mod2
+
     try:
         ms_id = int(milestone_id) if milestone_id and milestone_id.strip() else None
         if not ms_id:
             raise HTTPException(status_code=400, detail="Please select a milestone.")
         workspace_mod2.draft(user, ms_id, instruction or "", source_text)
-        return RedirectResponse(url=f"/projects/{project_id}/workspace", status_code=303)
+        return RedirectResponse(
+            url=f"/projects/{project_id}/workspace", status_code=303
+        )
     except HTTPException as e:
         ctx = _workspace_context(request, project_id, user)
         ctx["error"] = e.detail
         ctx["error_code"] = e.status_code
-        return templates.TemplateResponse(request, "workspace.html", ctx, status_code=e.status_code)
+        return templates.TemplateResponse(
+            request, "workspace.html", ctx, status_code=e.status_code
+        )
 
 
 @app.post("/workspace-actions/{ai_call_id}/approve-ui")
@@ -2312,15 +2520,20 @@ async def ui_approve_workspace_action(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.ai import workspace as workspace_mod2
+
     cf = confirm_flagged == "true" or confirm_flagged == "on"
     try:
         workspace_mod2.approve_action(user, ai_call_id, confirm_flagged=cf)
-        return RedirectResponse(url=f"/projects/{project_id}/workspace", status_code=303)
+        return RedirectResponse(
+            url=f"/projects/{project_id}/workspace", status_code=303
+        )
     except HTTPException as e:
         ctx = _workspace_context(request, project_id, user)
         ctx["error"] = e.detail
         ctx["error_code"] = e.status_code
-        return templates.TemplateResponse(request, "workspace.html", ctx, status_code=e.status_code)
+        return templates.TemplateResponse(
+            request, "workspace.html", ctx, status_code=e.status_code
+        )
 
 
 @app.post("/workspace-actions/{ai_call_id}/reject-ui")
@@ -2331,17 +2544,23 @@ async def ui_reject_workspace_action(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     from app.ai import workspace as workspace_mod2
+
     try:
         workspace_mod2.reject_action(user, ai_call_id)
-        return RedirectResponse(url=f"/projects/{project_id}/workspace", status_code=303)
+        return RedirectResponse(
+            url=f"/projects/{project_id}/workspace", status_code=303
+        )
     except HTTPException as e:
         ctx = _workspace_context(request, project_id, user)
         ctx["error"] = e.detail
         ctx["error_code"] = e.status_code
-        return templates.TemplateResponse(request, "workspace.html", ctx, status_code=e.status_code)
+        return templates.TemplateResponse(
+            request, "workspace.html", ctx, status_code=e.status_code
+        )
 
 
 # ── Firewall ──
+
 
 @app.get("/projects/{project_id}/firewall")
 def ui_firewall_get(
@@ -2362,9 +2581,9 @@ def ui_firewall_get(
     calls_display = []
 
     if can_access:
-        total_calls = (
-            query_one("SELECT COUNT(*) as c FROM ai_calls WHERE project_id = ?", (project_id,))["c"]
-        )
+        total_calls = query_one(
+            "SELECT COUNT(*) as c FROM ai_calls WHERE project_id = ?", (project_id,)
+        )["c"]
         confidential_external = query_one(
             "SELECT COUNT(*) as c FROM ai_calls WHERE project_id = ? AND sensitivity_label = 'confidential' AND model_route = 'api'",
             (project_id,),
@@ -2374,7 +2593,7 @@ def ui_firewall_get(
             (project_id,),
         )["c"]
         pending_approvals = query_one(
-            "SELECT COUNT(*) as c FROM ai_calls WHERE project_id = ? AND prompt_summary LIKE '%\"status\": \"pending\"%'",
+            'SELECT COUNT(*) as c FROM ai_calls WHERE project_id = ? AND prompt_summary LIKE \'%"status": "pending"%\'',
             (project_id,),
         )["c"]
 
@@ -2418,6 +2637,7 @@ def ui_firewall_get(
 # Integrity Centre UI Routes (Module S5c)
 # ─────────────────────────────────────────────
 
+
 @app.get("/integrity")
 def integrity_page(
     request: Request,
@@ -2425,7 +2645,9 @@ def integrity_page(
 ):
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
     can_see = user is not None
-    active_tab = "trace" if (user and user["role"] in ("sponsor", "admin")) else "authorship"
+    active_tab = (
+        "trace" if (user and user["role"] in ("sponsor", "admin")) else "authorship"
+    )
     return templates.TemplateResponse(
         request,
         "integrity.html",
@@ -2497,6 +2719,7 @@ def integrity_trace_post(
         )
 
     from app.integrity.service import trace
+
     try:
         res = trace(user, text)
         return templates.TemplateResponse(
@@ -2569,6 +2792,7 @@ def integrity_authorship_post(
         )
 
     from app.integrity.service import authorship_lookup
+
     res = authorship_lookup(user, text)
     return templates.TemplateResponse(
         request,
@@ -2622,6 +2846,7 @@ def integrity_check_post(
         )
 
     from app.integrity.service import preview_check
+
     res = preview_check(user, text, ai_declaration, milestone_id)
     return templates.TemplateResponse(
         request,
@@ -2648,16 +2873,19 @@ def integrity_check_post(
 # Story Mode Routes (Module S6b)
 # ─────────────────────────────────────────────
 
+
 @app.get("/story")
 def story_page(
     request: Request,
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
 
     import app.story as story_mod
+
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
     status_info = story_mod.status()
 
@@ -2682,10 +2910,12 @@ def story_run_post(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
 
     import app.story as story_mod
+
     story_mod.run(key)
     return RedirectResponse(url="/story", status_code=303)
 
@@ -2697,10 +2927,12 @@ def api_story_run(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
 
     import app.story as story_mod
+
     res = story_mod.run(key)
     return JSONResponse(res, status_code=200)
 
@@ -2712,10 +2944,12 @@ def api_story_twist(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
 
     import app.story as story_mod
+
     res = story_mod.run_twist(case)
     return JSONResponse(res, status_code=200)
 
@@ -2726,10 +2960,12 @@ def api_story_status(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
 
     import app.story as story_mod
+
     res = story_mod.status()
     return JSONResponse(res, status_code=200)
 
@@ -2740,11 +2976,19 @@ def api_story_restore(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
 
     count = ledger.restore_demo()
-    return JSONResponse({"status": "restored", "restored_count": count, "message": "Ledger chain restored."}, status_code=200)
+    return JSONResponse(
+        {
+            "status": "restored",
+            "restored_count": count,
+            "message": "Ledger chain restored.",
+        },
+        status_code=200,
+    )
 
 
 @app.post("/api/story/reset")
@@ -2753,9 +2997,11 @@ def api_story_reset(
     user: Optional[sqlite3.Row] = Depends(current_user),
 ):
     import app.ledger as ledger
+
     if not ledger.demo_mode():
         raise HTTPException(status_code=403, detail="Demo mode disabled")
 
     import app.demo as demo
+
     res = demo.reset()
     return JSONResponse(res, status_code=200)

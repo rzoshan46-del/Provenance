@@ -1,7 +1,7 @@
 import os
-from pathlib import Path
 import sqlite3
-from typing import Any, List, Optional, Sequence, Union
+from pathlib import Path
+from typing import Any, List, Optional, Sequence
 
 try:
     import psycopg
@@ -30,7 +30,9 @@ def get_conn() -> Any:
     """Return a SQLite connection by default, or a Postgres connection when PROVENANCE_DATABASE_URL is set."""
     if has_postgres_url():
         if psycopg is None:
-            raise RuntimeError("psycopg is required when PROVENANCE_DATABASE_URL is configured")
+            raise RuntimeError(
+                "psycopg is required when PROVENANCE_DATABASE_URL is configured"
+            )
         return psycopg.connect(os.environ["PROVENANCE_DATABASE_URL"])
 
     conn = sqlite3.connect(str(get_db_path()))

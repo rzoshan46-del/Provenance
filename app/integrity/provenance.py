@@ -1,14 +1,14 @@
-"""app/integrity/provenance.py — Provenance labeling and AI breakdown computation.
-"""
+"""app/integrity/provenance.py — Provenance labeling and AI breakdown computation."""
+
 import sqlite3
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from app.db import query_all, query_one
 
 
 def label(contribution_row: Any) -> Dict[str, Any]:
     """Compute provenance metadata object for a contribution.
-    
+
     Returns:
         {
             "kind": str ("human" | "ai_assisted" | "agent_generated"),
@@ -75,7 +75,7 @@ def label(contribution_row: Any) -> Dict[str, Any]:
 
 def ai_breakdown(milestone_id: int) -> Dict[str, float]:
     """Calculate percentages of reviewed impact by declaration on a milestone.
-    
+
     Percentages each rounded to 1 decimal, with rounding remainder on largest share
     so they sum to 100.0. Computed live and NOT part of any hash (SPEC §20).
     """

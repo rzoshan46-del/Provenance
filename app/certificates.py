@@ -20,6 +20,7 @@ How verification works:
 Privacy: no email addresses, no confidential brief. Minors are shown as
 "First L." only.
 """
+
 import hashlib
 import io
 import re
@@ -103,7 +104,10 @@ def _chain_status() -> Dict[str, Any]:
 def _entry_ok(row: Any) -> bool:
     """Re-compute one ledger entry's payload hash and entry hash."""
     try:
-        if hashlib.sha256(row["payload_json"].encode("utf-8")).hexdigest() != row["payload_hash"]:
+        if (
+            hashlib.sha256(row["payload_json"].encode("utf-8")).hexdigest()
+            != row["payload_hash"]
+        ):
             return False
         fields = {
             "action": row["action"],
@@ -292,7 +296,9 @@ def load_certificate(credential_hash: str, base_url: str) -> Optional[Dict[str, 
         "chain_broken_at": chain.get("first_broken_id"),
         "revoked": revoked,
         "revoked_at": dict(revocation)["revoked_at"] if revoked else None,
-        "revoked_reason": REVOKE_REASONS.get(dict(revocation)["reason_code"], "Revoked") if revoked else None,
+        "revoked_reason": REVOKE_REASONS.get(dict(revocation)["reason_code"], "Revoked")
+        if revoked
+        else None,
         "verify_url": verify_url,
         "print_url": f"{base_url}/certificate/{credential_hash}",
         "qr_url": f"/certificate/{credential_hash}/qr.svg",
@@ -365,7 +371,9 @@ def build_router(templates) -> APIRouter:
     def api_verify(credential_hash: str, request: Request):
         cert = load_certificate(credential_hash, _public_base(request))
         if not cert:
-            return JSONResponse({"valid": False, "status": "not_found"}, status_code=404)
+            return JSONResponse(
+                {"valid": False, "status": "not_found"}, status_code=404
+            )
         out = dict(cert)
         out["valid"] = cert["status"] == "valid"
         return out
@@ -382,15 +390,19 @@ def build_router(templates) -> APIRouter:
         if body.reason_code not in REVOKE_REASONS:
             raise HTTPException(
                 status_code=400,
-                detail="reason_code must be one of: " + ", ".join(sorted(REVOKE_REASONS)),
+                detail="reason_code must be one of: "
+                + ", ".join(sorted(REVOKE_REASONS)),
             )
         cred = query_one(
-            "SELECT id, project_id, user_id FROM credentials WHERE credential_hash = ?", (h,)
+            "SELECT id, project_id, user_id FROM credentials WHERE credential_hash = ?",
+            (h,),
         )
         if not cred:
             raise HTTPException(status_code=404, detail="Certificate not found")
         if _revocation(h):
-            raise HTTPException(status_code=409, detail="Certificate is already revoked")
+            raise HTTPException(
+                status_code=409, detail="Certificate is already revoked"
+            )
 
         note = (body.note or "").strip()[:300] or None
         revoked_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
@@ -416,6 +428,10 @@ def build_router(templates) -> APIRouter:
             },
         )
         _chain_cache["v"] = None  # force a fresh chain check on the next page view
-        return {"status": "revoked", "credential_hash": h, "reason_code": body.reason_code}
+        return {
+            "status": "revoked",
+            "credential_hash": h,
+            "reason_code": body.reason_code,
+        }
 
     return router

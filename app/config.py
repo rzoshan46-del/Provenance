@@ -2,7 +2,11 @@ import os
 
 
 def get_app_env() -> str:
-    return (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "development").strip().lower()
+    return (
+        (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "development")
+        .strip()
+        .lower()
+    )
 
 
 def is_production() -> bool:
@@ -29,7 +33,11 @@ def get_session_secret() -> str:
 
 
 def get_database_url() -> str:
-    return os.getenv("PROVENANCE_DATABASE_URL") or os.getenv("PROVENANCE_DB") or "data/app.db"
+    return (
+        os.getenv("PROVENANCE_DATABASE_URL")
+        or os.getenv("PROVENANCE_DB")
+        or "data/app.db"
+    )
 
 
 def demo_mode_enabled() -> bool:

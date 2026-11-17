@@ -1,18 +1,17 @@
 """
 app/services/contributions.py — Contribution Submission & Review Service for Provenance.
 """
-from datetime import datetime, timezone
+
 import hashlib
 import json
-import sqlite3
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
+import app.ledger as ledger
 from app.access import can_view, membership_state
 from app.db import execute, query_all, query_one
-import app.ledger as ledger
-
 
 _VALID_AI_DECLARATIONS = frozenset({"human", "ai_assisted", "agent_generated"})
 
@@ -42,7 +41,9 @@ def submit_contribution(
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -129,6 +130,7 @@ def submit_contribution(
     )
 
     from app.integrity.service import check_contribution
+
     check_contribution(contribution_id)
 
     return {
@@ -173,7 +175,9 @@ def review_contribution(
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -334,7 +338,9 @@ def list_contributions(user: Any, milestone_id: int) -> List[Dict[str, Any]]:
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -353,6 +359,7 @@ def list_contributions(user: Any, milestone_id: int) -> List[Dict[str, Any]]:
     )
     from app.integrity.provenance import label as provenance_label
     from app.integrity.service import protect
+
     result = []
     for r in rows:
         d = dict(r)

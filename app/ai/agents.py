@@ -1,10 +1,9 @@
-"""app/ai/agents.py — Agent lifecycle and allowed tool registry for Provenance.
-"""
-from typing import Any, Dict, List, Optional
+"""app/ai/agents.py — Agent lifecycle and allowed tool registry for Provenance."""
+
 import json
+from typing import Any, Dict, List, Optional
 
 from app.db import execute, query_one
-
 
 ALLOWED_TOOLS_BY_KIND: Dict[str, List[str]] = {
     "scoping": ["propose_milestones"],
@@ -33,7 +32,7 @@ def get_or_create_agent(
     human_owner_id: Optional[int],
 ) -> Dict[str, Any]:
     """Get or create an agent row in the database.
-    
+
     Rules (SPEC §19):
     - Agents are rows in agents, unique per (kind, project_id, human_owner_id).
     - Must have a valid human owner (raises ValueError if missing or does not exist).
@@ -48,7 +47,9 @@ def get_or_create_agent(
         raise ValueError(f"Human owner with id {human_owner_id} does not exist")
 
     if kind not in ALLOWED_TOOLS_BY_KIND:
-        raise ValueError(f"Invalid agent kind '{kind}'. Must be one of: {list(ALLOWED_TOOLS_BY_KIND.keys())}")
+        raise ValueError(
+            f"Invalid agent kind '{kind}'. Must be one of: {list(ALLOWED_TOOLS_BY_KIND.keys())}"
+        )
 
     # Check for existing agent
     if project_id is not None:
@@ -73,7 +74,7 @@ def get_or_create_agent(
     # Create new agent
     tools = ALLOWED_TOOLS_BY_KIND[kind]
     tools_json = json.dumps(tools)
-    
+
     if project_id is not None:
         name = f"{kind.capitalize()} Agent (P{project_id})"
     else:

@@ -9,6 +9,7 @@ with UPDATE or DELETE (RULES.md rule m).
 MOCKED: production would anchor the head hash on a public blockchain and
         use per-user Ed25519 signatures (SPEC.md §17).
 """
+
 import hashlib
 import json
 import os
@@ -16,8 +17,8 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from app.db import get_db_path, get_conn
 from app.access import can_view
+from app.db import get_conn, get_db_path
 
 # Genesis sentinel — prev_hash of the very first ledger entry
 GENESIS_HASH = "0" * 64
@@ -28,6 +29,7 @@ _VALID_ACTOR_TYPES = frozenset({"human", "agent", "system"})
 # ─────────────────────────────────────────────
 # Public hash helpers (smoke tests call these)
 # ─────────────────────────────────────────────
+
 
 def canonical(obj: Any) -> str:
     """Canonical JSON serialisation — sort_keys, no spaces, ASCII-safe."""
@@ -52,11 +54,12 @@ def compute_entry_hash(prev_hash: str, fields: Dict[str, Any]) -> str:
 # Genesis
 # ─────────────────────────────────────────────
 
+
 def ensure_genesis() -> None:
     """Idempotent — inserts the genesis entry only if ledger_entries is empty."""
     conn = sqlite3.connect(str(get_db_path()))
     conn.row_factory = sqlite3.Row
-    conn.isolation_level = None   # manual transaction control
+    conn.isolation_level = None  # manual transaction control
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT COUNT(*) AS c FROM ledger_entries").fetchone()
@@ -88,8 +91,19 @@ def ensure_genesis() -> None:
                  human_owner_id, action, project_id, payload_json, payload_hash, charter_version)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (GENESIS_HASH, entry_hash, ts, None, "system", None,
-             "genesis", None, payload_json, payload_hash, None),
+            (
+                GENESIS_HASH,
+                entry_hash,
+                ts,
+                None,
+                "system",
+                None,
+                "genesis",
+                None,
+                payload_json,
+                payload_hash,
+                None,
+            ),
         )
         conn.execute("COMMIT")
     except Exception:
@@ -105,6 +119,7 @@ def ensure_genesis() -> None:
 # ─────────────────────────────────────────────
 # Append — the ONLY normal write path
 # ─────────────────────────────────────────────
+
 
 def append(
     action: str,
@@ -144,7 +159,7 @@ def append(
 
     conn = sqlite3.connect(str(get_db_path()))
     conn.row_factory = sqlite3.Row
-    conn.isolation_level = None   # manual transaction control
+    conn.isolation_level = None  # manual transaction control
     try:
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("BEGIN IMMEDIATE")
@@ -173,8 +188,19 @@ def append(
                  human_owner_id, action, project_id, payload_json, payload_hash, charter_version)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (prev_hash, entry_hash, ts, actor_id, actor_type, human_owner_id,
-             action, project_id, payload_json, payload_hash, charter_version),
+            (
+                prev_hash,
+                entry_hash,
+                ts,
+                actor_id,
+                actor_type,
+                human_owner_id,
+                action,
+                project_id,
+                payload_json,
+                payload_hash,
+                charter_version,
+            ),
         )
         conn.execute("COMMIT")
         return cursor.lastrowid
@@ -192,6 +218,7 @@ def append(
 # Verify
 # ─────────────────────────────────────────────
 
+
 def verify() -> Dict[str, Any]:
     """Walk all ledger entries by id and verify the hash chain.
 
@@ -207,9 +234,7 @@ def verify() -> Dict[str, Any]:
     """
     conn = get_conn()
     try:
-        rows = conn.execute(
-            "SELECT * FROM ledger_entries ORDER BY id ASC"
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM ledger_entries ORDER BY id ASC").fetchall()
     finally:
         conn.close()
 
@@ -296,6 +321,7 @@ def verify() -> Dict[str, Any]:
 # ─────────────────────────────────────────────
 # List entries
 # ─────────────────────────────────────────────
+
 
 def _full_entry(row: sqlite3.Row) -> Dict[str, Any]:
     payload = None
@@ -415,6 +441,7 @@ def list_entries(
 # Demo mode flag
 # ─────────────────────────────────────────────
 
+
 def demo_mode() -> bool:
     """Return True unless PROVENANCE_DEMO env var is exactly "0". Read on every call."""
     return os.environ.get("PROVENANCE_DEMO", "1") != "0"
@@ -423,6 +450,7 @@ def demo_mode() -> bool:
 # ─────────────────────────────────────────────
 # Demo tools — the ONLY places allowed to UPDATE ledger_entries
 # ─────────────────────────────────────────────
+
 
 def tamper_demo(entry_id: Optional[int] = None) -> int:
     """DEMO TOOL: simulates someone editing the database directly.

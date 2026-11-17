@@ -6,23 +6,23 @@ goes through the gateway security pipeline; no tool executes automatically.
 A human-approval gate (approve_action / reject_action) converts a pending
 draft into a real contribution or discards it.
 """
-from datetime import datetime, timezone
+
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import HTTPException
 
-from app.access import membership_state
-from app.ai.agents import get_agent, get_or_create_agent
-from app.ai import gateway
-from app.db import execute, query_all, query_one
 import app.ledger as ledger
 import app.services.contributions as contributions_svc
-
+from app.access import membership_state
+from app.ai import gateway
+from app.ai.agents import get_or_create_agent
+from app.db import execute, query_all, query_one
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _get_user(user_id: int) -> Dict[str, Any]:
     """Fetch a user row by id; raise 500 if missing (should never happen)."""
@@ -71,6 +71,7 @@ def _require_workspace_draft(call_id: int) -> Dict[str, Any]:
 # 1. draft
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def draft(
     user: Any,
     milestone_id: int,
@@ -97,7 +98,9 @@ def draft(
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -121,11 +124,15 @@ def draft(
     if not instruction:
         raise HTTPException(status_code=400, detail="instruction is required")
     if len(instruction) > 500:
-        raise HTTPException(status_code=400, detail="instruction must be at most 500 characters")
+        raise HTTPException(
+            status_code=400, detail="instruction must be at most 500 characters"
+        )
 
     source_text = source_text or ""
     if len(source_text) > 8000:
-        raise HTTPException(status_code=400, detail="source_text must be at most 8000 characters")
+        raise HTTPException(
+            status_code=400, detail="source_text must be at most 8000 characters"
+        )
 
     project_id = project["id"]
 
@@ -157,8 +164,7 @@ def draft(
 
     # Strip TOOL: lines from the draft before returning / storing
     clean_draft = "\n".join(
-        line for line in raw_draft.splitlines()
-        if not line.strip().startswith("TOOL:")
+        line for line in raw_draft.splitlines() if not line.strip().startswith("TOOL:")
     )
 
     # Update response_summary to the cleaned draft and patch status → pending
@@ -181,6 +187,7 @@ def draft(
 # 2. list_actions
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def list_actions(user: Any, project_id: int) -> List[Dict[str, Any]]:
     """List workspace actions for a project.
 
@@ -197,12 +204,14 @@ def list_actions(user: Any, project_id: int) -> List[Dict[str, Any]]:
     uid = user["id"]
     role = user["role"]
     is_admin = role == "admin"
-    is_sponsor = (project["sponsor_id"] == uid)
+    is_sponsor = project["sponsor_id"] == uid
     state = membership_state(project_id, uid)
-    is_member = (state == "member")
+    is_member = state == "member"
 
     if not (is_admin or is_sponsor or is_member):
-        raise HTTPException(status_code=403, detail="Access denied to workspace actions")
+        raise HTTPException(
+            status_code=403, detail="Access denied to workspace actions"
+        )
 
     rows = query_all(
         """
@@ -268,6 +277,7 @@ def list_actions(user: Any, project_id: int) -> List[Dict[str, Any]]:
 # 3. approve_action
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def approve_action(
     user: Any,
     ai_call_id: int,
@@ -304,7 +314,9 @@ def approve_action(
     # Owner-only gate
     owner_id = row["human_owner_id"]
     if user["id"] != owner_id:
-        raise HTTPException(status_code=403, detail="Only the draft owner may approve it")
+        raise HTTPException(
+            status_code=403, detail="Only the draft owner may approve it"
+        )
 
     # Pending gate
     if status != "pending":
@@ -321,7 +333,9 @@ def approve_action(
         )
 
     if not milestone_id:
-        raise HTTPException(status_code=500, detail="Action has no milestone_id in meta")
+        raise HTTPException(
+            status_code=500, detail="Action has no milestone_id in meta"
+        )
 
     # Fetch owner user row
     owner_user = _get_user(owner_id)
@@ -329,8 +343,7 @@ def approve_action(
     # Clean draft text (strip any TOOL: lines that slipped through)
     draft_text = row.get("response_summary") or ""
     draft_text = "\n".join(
-        line for line in draft_text.splitlines()
-        if not line.strip().startswith("TOOL:")
+        line for line in draft_text.splitlines() if not line.strip().startswith("TOOL:")
     )
 
     # Identify the workspace agent (agent linked to this ai_calls row)
@@ -379,6 +392,7 @@ def approve_action(
 # 4. reject_action
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def reject_action(user: Any, ai_call_id: int) -> Dict[str, Any]:
     """Owner rejects a pending workspace draft — no contribution is created.
 
@@ -403,7 +417,9 @@ def reject_action(user: Any, ai_call_id: int) -> Dict[str, Any]:
 
     # Owner-only gate
     if user["id"] != owner_id:
-        raise HTTPException(status_code=403, detail="Only the draft owner may reject it")
+        raise HTTPException(
+            status_code=403, detail="Only the draft owner may reject it"
+        )
 
     # Pending gate
     if status != "pending":

@@ -6,24 +6,25 @@ SPEC.md §20:
 - preview_check(user, text, ai_declaration="human", milestone_id=None)
 - authorship_lookup(user, text)
 """
+
 import hashlib
 import json
 import sqlite3
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
+import app.ledger as ledger
 from app.access import can_view
 from app.db import execute, query_all, query_one
 from app.integrity import watermark
 from app.integrity.signals import ai_markers
 from app.integrity.similarity import FLAG_THRESHOLD, compare, shingles, tokenize
-import app.ledger as ledger
 
 
 def check_contribution(contribution_id: int) -> Dict[str, Any]:
     """Run similarity & AI marker checks on a newly submitted contribution.
-    
+
     Compares against other authors' contributions across all projects.
     Flags contribution if score >= 0.6 or undisclosed AI is detected.
     """
@@ -177,7 +178,7 @@ def _extract_shared_phrases(text_a: str, text_b: str, limit: int = 3) -> List[st
 
 def integrity_report(user: Any, contribution_id: int) -> Dict[str, Any]:
     """Generate detailed integrity report for a contribution.
-    
+
     Visible to sponsor, members, and admin (can_view 'milestones') else 403.
     """
     contrib = query_one(
@@ -306,21 +307,25 @@ def preview_check(
     if milestone_id is not None:
         milestone = query_one("SELECT * FROM milestones WHERE id = ?", (milestone_id,))
         if milestone:
-            project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+            project = query_one(
+                "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+            )
             if project and can_view(user, project, "milestones") and matched_row:
                 if matched_row["project_id"] == project["id"]:
                     res["matched_contribution_id"] = matched_row["id"]
                     res["matched_title"] = matched_row["artefact_title"]
                     res["matched_author_name"] = matched_row["author_name"]
                 else:
-                    res["notice"] = "matches content in another project (details hidden)"
+                    res["notice"] = (
+                        "matches content in another project (details hidden)"
+                    )
 
     return res
 
 
 def authorship_lookup(user: Any, text: str) -> Dict[str, Any]:
     """Lookup the earliest original contribution matching text exactly.
-    
+
     Matches in projects the user cannot see are never revealed (SPEC §20).
     """
     if not text:
@@ -341,7 +346,9 @@ def authorship_lookup(user: Any, text: str) -> Dict[str, Any]:
     )
 
     for cand in candidates:
-        project = query_one("SELECT * FROM projects WHERE id = ?", (cand["project_id"],))
+        project = query_one(
+            "SELECT * FROM projects WHERE id = ?", (cand["project_id"],)
+        )
         if project and can_view(user, project, "milestones"):
             # Lookup contribution_submitted ledger entry id
             entry = query_one(
@@ -408,7 +415,9 @@ def protect(
     for r in rows:
         try:
             p = json.loads(r["payload_json"])
-            if p.get("resource") == resource and str(p.get("resource_id")) == str(resource_id):
+            if p.get("resource") == resource and str(p.get("resource_id")) == str(
+                resource_id
+            ):
                 already_logged = True
                 break
         except Exception:
@@ -448,7 +457,9 @@ def trace(user: Any, text: str) -> Dict[str, Any]:
             user_role = getattr(user, "role", None)
 
     if not user or user_role not in ("sponsor", "admin"):
-        raise HTTPException(status_code=403, detail="Forbidden: only sponsor or admin may trace leaks")
+        raise HTTPException(
+            status_code=403, detail="Forbidden: only sponsor or admin may trace leaks"
+        )
 
     res = watermark.extract(text)
     if not res.get("found") or not res.get("valid") or not res.get("user_id"):
@@ -460,15 +471,22 @@ def trace(user: Any, text: str) -> Dict[str, Any]:
     traced_user_id = res["user_id"]
     traced_user = query_one("SELECT * FROM users WHERE id = ?", (traced_user_id,))
     if not traced_user:
-        raise HTTPException(status_code=404, detail="no matching viewer on your projects")
+        raise HTTPException(
+            status_code=404, detail="no matching viewer on your projects"
+        )
 
     sponsor_projects: List[int] = []
     if user_role == "sponsor":
         sponsor_projects = [
-            p["id"] for p in query_all("SELECT id FROM projects WHERE sponsor_id = ?", (user_id,))
+            p["id"]
+            for p in query_all(
+                "SELECT id FROM projects WHERE sponsor_id = ?", (user_id,)
+            )
         ]
         if not sponsor_projects:
-            raise HTTPException(status_code=404, detail="no matching viewer on your projects")
+            raise HTTPException(
+                status_code=404, detail="no matching viewer on your projects"
+            )
 
         placeholders = ",".join("?" for _ in sponsor_projects)
         view_entry = query_one(
@@ -480,7 +498,9 @@ def trace(user: Any, text: str) -> Dict[str, Any]:
             (traced_user_id, *sponsor_projects),
         )
         if not view_entry:
-            raise HTTPException(status_code=404, detail="no matching viewer on your projects")
+            raise HTTPException(
+                status_code=404, detail="no matching viewer on your projects"
+            )
 
     # Collect logged views limited to projects the caller can see
     view_rows = query_all(
@@ -499,12 +519,14 @@ def trace(user: Any, text: str) -> Dict[str, Any]:
         if can_see:
             try:
                 p = json.loads(vr["payload_json"])
-                logged_views.append({
-                    "resource": p.get("resource"),
-                    "resource_id": p.get("resource_id"),
-                    "project_id": pid,
-                    "timestamp": vr["timestamp"],
-                })
+                logged_views.append(
+                    {
+                        "resource": p.get("resource"),
+                        "resource_id": p.get("resource_id"),
+                        "project_id": pid,
+                        "timestamp": vr["timestamp"],
+                    }
+                )
             except Exception:
                 pass
 

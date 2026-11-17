@@ -3,15 +3,15 @@ app/services/escrow.py — Escrow State Machine and Funding Service.
 
 MOCKED: production would use a payment gateway and KYC (SPEC.md §18).
 """
-from datetime import datetime, timezone
+
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set
 
 from fastapi import HTTPException
 
-from app.db import execute, query_one
 import app.ledger as ledger
-
+from app.db import execute, query_one
 
 ALLOWED: Dict[str, Set[str]] = {
     "draft": {"funded"},
@@ -115,7 +115,9 @@ def fund_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -127,17 +129,11 @@ def fund_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
 
     # Non-monetary check: engagement_model must be funded or stipend (400)
     if project["engagement_model"] not in ("funded", "stipend"):
-        raise HTTPException(
-            status_code=400, detail="no escrow on non-funded projects"
-        )
+        raise HTTPException(status_code=400, detail="no escrow on non-funded projects")
 
-    escrow = query_one(
-        "SELECT * FROM escrows WHERE milestone_id = ?", (milestone_id,)
-    )
+    escrow = query_one("SELECT * FROM escrows WHERE milestone_id = ?", (milestone_id,))
     if not escrow:
-        raise HTTPException(
-            status_code=400, detail="no escrow on non-funded projects"
-        )
+        raise HTTPException(status_code=400, detail="no escrow on non-funded projects")
 
     if escrow["state"] != "draft":
         raise HTTPException(

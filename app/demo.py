@@ -3,9 +3,11 @@ app/demo.py — Demo reset and orchestrator support.
 
 DEMO TOOL: reset() resets database and ledger to clean initial state.
 """
+
 from typing import Any, Dict
-from app.db import get_conn, query_one
+
 import app.ledger as ledger
+from app.db import get_conn, query_one
 from app.seed import seed_projects, seed_users
 
 

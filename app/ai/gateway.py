@@ -4,22 +4,21 @@ RULES:
 - (o) Every model call goes through app/ai/gateway.py, and no other file imports httpx.
 - (p) API keys come only from environment variables and are never printed, logged or committed.
 """
-from dataclasses import dataclass
-from datetime import datetime, timezone
+
 import hashlib
 import json
 import os
 import re
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
+import app.ledger as ledger
 from app.ai.agents import get_agent
 from app.ai.canned import get_canned_response
 from app.db import execute, query_one
-import app.ledger as ledger
-
 
 # ─────────────────────────────────────────────
 # Local probe cache (30s)
@@ -59,7 +58,7 @@ def choose_route(
     local_available: bool,
 ) -> str:
     """Determine the model execution route.
-    
+
     Rules (SPEC §19):
     - mode 'canned' -> 'canned'
     - mode 'off'/'none'/'disabled' -> 'canned' to avoid AI calls in a production-safe mode
@@ -89,9 +88,15 @@ _EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 _PHONE_RE = re.compile(r"\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
 
 _INJECTION_PATTERNS = [
-    (re.compile(r"ignore\s+(?:previous|all)\s+instructions?", re.IGNORECASE), "ignore_instructions"),
+    (
+        re.compile(r"ignore\s+(?:previous|all)\s+instructions?", re.IGNORECASE),
+        "ignore_instructions",
+    ),
     (re.compile(r"disregard\s+(?:previous|all)?", re.IGNORECASE), "disregard"),
-    (re.compile(r"reveal\s+(?:the\s+)?(?:system\s+)?prompt", re.IGNORECASE), "reveal_system_prompt"),
+    (
+        re.compile(r"reveal\s+(?:the\s+)?(?:system\s+)?prompt", re.IGNORECASE),
+        "reveal_system_prompt",
+    ),
     (re.compile(r"system\s+prompt", re.IGNORECASE), "system_prompt"),
     (re.compile(r"you\s+are\s+now", re.IGNORECASE), "impersonate"),
     (re.compile(r"send\s+.*?email", re.IGNORECASE), "send_email"),
@@ -154,7 +159,7 @@ def wrap_data(text: str) -> str:
 # ─────────────────────────────────────────────
 def _call_gemini_rest(prompt: str) -> str:
     """Call Google Gemini REST API with 20-second timeout.
-    
+
     API key is read strictly from GEMINI_API_KEY environment variable.
     """
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
@@ -168,13 +173,7 @@ def _call_gemini_rest(prompt: str) -> str:
         "x-goog-api-key": api_key,
         "Content-Type": "application/json",
     }
-    body = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
-        ]
-    }
+    body = {"contents": [{"parts": [{"text": prompt}]}]}
 
     with httpx.Client(timeout=20.0) as client:
         resp = client.post(url, headers=headers, json=body)
@@ -220,6 +219,7 @@ def _call_ollama(prompt: str) -> str:
 # ─────────────────────────────────────────────
 class GatewayResult(dict):
     """Dictionary-compatible result object with attribute access."""
+
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.__dict__.update(kwargs)
@@ -239,7 +239,7 @@ def call(
     response_override: Optional[str] = None,
 ) -> GatewayResult:
     """Execute an AI agent task through the security gateway.
-    
+
     Guarantees:
     - Enforces agent project scope and human ownership.
     - Redacts emails and phone numbers before model submission.
@@ -271,12 +271,17 @@ def call(
             )
             raise PermissionError("Agent not permitted on this project")
 
-    effective_project_id = project_id if project_id is not None else agent.get("project_id")
+    effective_project_id = (
+        project_id if project_id is not None else agent.get("project_id")
+    )
 
     # Determine sensitivity label
     sensitivity_label = "public"
     if effective_project_id is not None:
-        proj = query_one("SELECT sensitivity_label FROM projects WHERE id = ?", (effective_project_id,))
+        proj = query_one(
+            "SELECT sensitivity_label FROM projects WHERE id = ?",
+            (effective_project_id,),
+        )
         if proj and proj["sensitivity_label"]:
             sensitivity_label = proj["sensitivity_label"]
 
@@ -291,7 +296,11 @@ def call(
 
     # Wrap data with boundary markers
     wrapped_data = wrap_data(redacted_data) if redacted_data else ""
-    full_prompt = f"{redacted_instruction}\n\n{wrapped_data}".strip() if wrapped_data else redacted_instruction
+    full_prompt = (
+        f"{redacted_instruction}\n\n{wrapped_data}".strip()
+        if wrapped_data
+        else redacted_instruction
+    )
 
     # Route selection
     mode = os.environ.get("PROVENANCE_LLM", "auto").strip().lower()
@@ -313,7 +322,9 @@ def call(
                 msg = str(e).lower()
                 fallback_reason = "timeout" if "timeout" in msg else "http_error"
                 actual_route = "canned"
-                output_text = get_canned_response(task, instruction, has_injection_flags=bool(injection_flags))
+                output_text = get_canned_response(
+                    task, instruction, has_injection_flags=bool(injection_flags)
+                )
         elif intended_route == "local":
             try:
                 output_text = _call_ollama(full_prompt)
@@ -321,10 +332,14 @@ def call(
                 msg = str(e).lower()
                 fallback_reason = "timeout" if "timeout" in msg else "http_error"
                 actual_route = "canned"
-                output_text = get_canned_response(task, instruction, has_injection_flags=bool(injection_flags))
+                output_text = get_canned_response(
+                    task, instruction, has_injection_flags=bool(injection_flags)
+                )
         else:  # canned
             actual_route = "canned"
-            output_text = get_canned_response(task, instruction, has_injection_flags=bool(injection_flags))
+            output_text = get_canned_response(
+                task, instruction, has_injection_flags=bool(injection_flags)
+            )
 
     # Tool request inspection
     tool_requests = parse_tool_requests(output_text)
@@ -341,7 +356,11 @@ def call(
                 actor_type="agent",
                 human_owner_id=agent["human_owner_id"],
                 project_id=effective_project_id,
-                payload={"tool": tool_name, "args_hash": args_hash, "reason": "unauthorized_tool"},
+                payload={
+                    "tool": tool_name,
+                    "args_hash": args_hash,
+                    "reason": "unauthorized_tool",
+                },
             )
 
     # Prompt summary (NEVER raw text or emails)

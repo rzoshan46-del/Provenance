@@ -1,16 +1,17 @@
 """
 app/services/milestones.py — Milestone Management Service for Provenance.
 """
-from datetime import datetime, timezone
+
 import json
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
+import app.ledger as ledger
 from app.access import can_view, membership_state
 from app.db import execute, query_all, query_one
-import app.ledger as ledger
 
 
 def create_milestone(user: Any, project_id: int, fields: Dict[str, Any]) -> int:
@@ -164,7 +165,9 @@ def list_milestones(user: Any, project_id: int) -> List[Dict[str, Any]]:
         (project_id,),
     )
 
-    is_sponsor_or_admin = user and (user["id"] == project["sponsor_id"] or user["role"] == "admin")
+    is_sponsor_or_admin = user and (
+        user["id"] == project["sponsor_id"] or user["role"] == "admin"
+    )
 
     result = []
     for r in rows:
@@ -190,20 +193,25 @@ def get_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     if not can_view(user, project, "milestones"):
         raise HTTPException(status_code=403, detail="Access denied to milestone")
 
-    is_sponsor_or_admin = user and (user["id"] == project["sponsor_id"] or user["role"] == "admin")
-    if milestone["status"] == "proposed" and not is_sponsor_or_admin:
-        raise HTTPException(status_code=403, detail="Proposed milestones are visible only to sponsor and admin")
-
-    escrow = query_one(
-        "SELECT * FROM escrows WHERE milestone_id = ?", (milestone_id,)
+    is_sponsor_or_admin = user and (
+        user["id"] == project["sponsor_id"] or user["role"] == "admin"
     )
+    if milestone["status"] == "proposed" and not is_sponsor_or_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Proposed milestones are visible only to sponsor and admin",
+        )
+
+    escrow = query_one("SELECT * FROM escrows WHERE milestone_id = ?", (milestone_id,))
 
     result = dict(milestone)
     try:
@@ -216,7 +224,9 @@ def get_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
     return result
 
 
-def approve_milestone(user: Any, milestone_id: int, amount_inr: Optional[Any] = None) -> Dict[str, Any]:
+def approve_milestone(
+    user: Any, milestone_id: int, amount_inr: Optional[Any] = None
+) -> Dict[str, Any]:
     """Approve a proposed milestone.
 
     Rules (SPEC §19):
@@ -234,12 +244,16 @@ def approve_milestone(user: Any, milestone_id: int, amount_inr: Optional[Any] = 
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     if not user or user["id"] != project["sponsor_id"]:
-        raise HTTPException(status_code=403, detail="Only the owning sponsor can approve milestones")
+        raise HTTPException(
+            status_code=403, detail="Only the owning sponsor can approve milestones"
+        )
 
     if milestone["status"] != "proposed":
         raise HTTPException(
@@ -261,7 +275,10 @@ def approve_milestone(user: Any, milestone_id: int, amount_inr: Optional[Any] = 
                     raise ValueError()
                 final_amount = val
             except (ValueError, TypeError):
-                raise HTTPException(status_code=400, detail="amount_inr must be a valid positive integer")
+                raise HTTPException(
+                    status_code=400,
+                    detail="amount_inr must be a valid positive integer",
+                )
         else:
             final_amount = 0
 
@@ -300,7 +317,6 @@ def approve_milestone(user: Any, milestone_id: int, amount_inr: Optional[Any] = 
     return get_milestone(user, milestone_id)
 
 
-
 def submit_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
     """Submit a completed milestone for sponsor review.
 
@@ -319,7 +335,9 @@ def submit_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -375,6 +393,7 @@ def submit_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
                 detail="Escrow must be funded before milestone submission",
             )
         from app.services.escrow import escrow_transition
+
         escrow_transition(escrow["id"], "submitted", user)
 
     # Update milestone status to 'submitted'
@@ -408,7 +427,9 @@ def finalize_acceptance(
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -541,7 +562,9 @@ def accept_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -559,4 +582,3 @@ def accept_milestone(user: Any, milestone_id: int) -> Dict[str, Any]:
         )
 
     return finalize_acceptance(milestone_id, actor=user, auto=False)
-

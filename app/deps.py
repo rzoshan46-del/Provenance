@@ -1,6 +1,8 @@
 import sqlite3
 from typing import Callable, Optional
+
 from fastapi import Depends, HTTPException, Request
+
 from app.config import get_auth_mode
 from app.db import query_one
 
@@ -32,9 +34,14 @@ def current_user(request: Request) -> Optional[sqlite3.Row]:
 
 def require_role(*roles: str) -> Callable:
     """FastAPI dependency to enforce access control based on user role."""
-    def role_checker(user: Optional[sqlite3.Row] = Depends(current_user)) -> sqlite3.Row:
+
+    def role_checker(
+        user: Optional[sqlite3.Row] = Depends(current_user),
+    ) -> sqlite3.Row:
         if not user or user["role"] not in roles:
-            raise HTTPException(status_code=403, detail="Forbidden: Insufficient privileges")
+            raise HTTPException(
+                status_code=403, detail="Forbidden: Insufficient privileges"
+            )
         return user
 
     return role_checker

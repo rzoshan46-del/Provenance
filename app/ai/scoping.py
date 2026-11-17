@@ -1,17 +1,17 @@
-"""app/ai/scoping.py — AI-assisted project milestone scoping service.
-"""
-from datetime import datetime, timezone
+"""app/ai/scoping.py — AI-assisted project milestone scoping service."""
+
 import json
 import re
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
+import app.ai.gateway as gateway
+import app.ledger as ledger
 from app.ai.agents import get_or_create_agent
 from app.ai.canned import SCOPING_MILESTONES
-import app.ai.gateway as gateway
-from app.db import execute, query_all, query_one
-import app.ledger as ledger
+from app.db import execute, query_one
 
 
 def _clean_json_text(text: str) -> str:
@@ -24,9 +24,11 @@ def _clean_json_text(text: str) -> str:
     return cleaned
 
 
-def propose_milestones(user: Any, project_id: int, budget_inr: Optional[Any] = None) -> List[Dict[str, Any]]:
+def propose_milestones(
+    user: Any, project_id: int, budget_inr: Optional[Any] = None
+) -> List[Dict[str, Any]]:
     """Propose milestone decomposition using the project's scoping agent.
-    
+
     Rules (SPEC §19):
     - Only the owning sponsor can run scoping (403).
     - If milestones already exist on this project: 409.
@@ -41,10 +43,14 @@ def propose_milestones(user: Any, project_id: int, budget_inr: Optional[Any] = N
         raise HTTPException(status_code=404, detail="Project not found")
 
     if not user or user["id"] != project["sponsor_id"]:
-        raise HTTPException(status_code=403, detail="Only the owning sponsor can scope milestones")
+        raise HTTPException(
+            status_code=403, detail="Only the owning sponsor can scope milestones"
+        )
 
     # Conflict check: project cannot be scoped twice
-    existing_count = query_one("SELECT COUNT(*) as c FROM milestones WHERE project_id = ?", (project_id,))["c"]
+    existing_count = query_one(
+        "SELECT COUNT(*) as c FROM milestones WHERE project_id = ?", (project_id,)
+    )["c"]
     if existing_count > 0:
         raise HTTPException(status_code=409, detail="Project already has milestones")
 
@@ -54,7 +60,9 @@ def propose_milestones(user: Any, project_id: int, budget_inr: Optional[Any] = N
     parsed_budget = 0
     if is_funded:
         if budget_inr is None:
-            raise HTTPException(status_code=400, detail="Funded project requires a positive budget_inr")
+            raise HTTPException(
+                status_code=400, detail="Funded project requires a positive budget_inr"
+            )
         try:
             if isinstance(budget_inr, str):
                 if "." in budget_inr:
@@ -65,10 +73,14 @@ def propose_milestones(user: Any, project_id: int, budget_inr: Optional[Any] = N
             else:
                 raise ValueError()
         except (ValueError, TypeError):
-            raise HTTPException(status_code=400, detail="budget_inr must be a valid positive integer")
+            raise HTTPException(
+                status_code=400, detail="budget_inr must be a valid positive integer"
+            )
 
         if parsed_budget <= 0:
-            raise HTTPException(status_code=400, detail="budget_inr must be greater than 0")
+            raise HTTPException(
+                status_code=400, detail="budget_inr must be greater than 0"
+            )
     else:
         parsed_budget = 0
 
@@ -128,7 +140,9 @@ def propose_milestones(user: Any, project_id: int, budget_inr: Optional[Any] = N
         title = str(m["title"]).strip()
         deliverables = str(m["deliverables"]).strip()
         criteria = str(m["acceptance_criteria"]).strip()
-        skills = [str(s).strip() for s in m.get("required_skills", []) if str(s).strip()]
+        skills = [
+            str(s).strip() for s in m.get("required_skills", []) if str(s).strip()
+        ]
         skills_json = json.dumps(skills)
 
         m_id = execute(
@@ -156,17 +170,19 @@ def propose_milestones(user: Any, project_id: int, budget_inr: Optional[Any] = N
             },
         )
 
-        created_milestones.append({
-            "id": m_id,
-            "project_id": project_id,
-            "title": title,
-            "deliverables": deliverables,
-            "acceptance_criteria": criteria,
-            "required_skills": skills,
-            "amount_inr": amt,
-            "status": "proposed",
-            "acceptance_window_days": 7,
-            "created_at": now_iso,
-        })
+        created_milestones.append(
+            {
+                "id": m_id,
+                "project_id": project_id,
+                "title": title,
+                "deliverables": deliverables,
+                "acceptance_criteria": criteria,
+                "required_skills": skills,
+                "amount_inr": amt,
+                "status": "proposed",
+                "acceptance_window_days": 7,
+                "created_at": now_iso,
+            }
+        )
 
     return created_milestones

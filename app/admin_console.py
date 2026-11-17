@@ -5,13 +5,19 @@ Admin-only. Shows: project review counts and queue, users by role, ledger health
 recent activity, credentials issued/revoked, AI gateway usage, and deployment checks.
 It never shows a confidential brief, an email address or a secret.
 """
-import os
+
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, Request
 
 import app.ledger as ledger
-from app.config import get_auth_mode, get_base_url, get_database_url, get_session_secret, is_production
+from app.config import (
+    get_auth_mode,
+    get_base_url,
+    get_database_url,
+    get_session_secret,
+    is_production,
+)
 from app.db import query_all, query_one
 from app.deps import require_role
 
@@ -71,7 +77,12 @@ def build_router(templates) -> APIRouter:
         from app import reviews
 
         all_users = query_all("SELECT * FROM users ORDER BY id ASC")
-        users_by_role = [dict(r) for r in query_all("SELECT role, COUNT(*) AS n FROM users GROUP BY role ORDER BY role")]
+        users_by_role = [
+            dict(r)
+            for r in query_all(
+                "SELECT role, COUNT(*) AS n FROM users GROUP BY role ORDER BY role"
+            )
+        ]
         chain = ledger.verify()
         recent = [
             dict(r)
@@ -81,7 +92,10 @@ def build_router(templates) -> APIRouter:
         ]
         rows = reviews._queue_rows()
         ai_by_route = [
-            dict(r) for r in query_all("SELECT model_route, COUNT(*) AS n FROM ai_calls GROUP BY model_route")
+            dict(r)
+            for r in query_all(
+                "SELECT model_route, COUNT(*) AS n FROM ai_calls GROUP BY model_route"
+            )
         ]
         ctx = {
             "user": admin,
@@ -94,7 +108,9 @@ def build_router(templates) -> APIRouter:
             "ledger_count": _count("SELECT COUNT(*) AS n FROM ledger_entries"),
             "recent": recent,
             "credentials_issued": _count("SELECT COUNT(*) AS n FROM credentials"),
-            "credentials_revoked": _count("SELECT COUNT(*) AS n FROM credential_revocations"),
+            "credentials_revoked": _count(
+                "SELECT COUNT(*) AS n FROM credential_revocations"
+            ),
             "ai_total": sum(r["n"] for r in ai_by_route),
             "ai_by_route": ai_by_route,
             "checks": deployment_checks(),

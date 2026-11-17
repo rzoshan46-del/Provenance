@@ -3,14 +3,14 @@
 MOCKED robustness: production would use robust fingerprinting.
 """
 
-from collections import Counter
 import re
-from typing import Any, Dict, Optional
+from collections import Counter
+from typing import Any, Dict
 
 # Characters used for watermarking
 DELIMITER = "\u2060"  # U+2060 WORD JOINER
-BIT_0 = "\u200b"      # U+200B ZERO WIDTH SPACE
-BIT_1 = "\u200c"      # U+200C ZERO WIDTH NON-JOINER
+BIT_0 = "\u200b"  # U+200B ZERO WIDTH SPACE
+BIT_1 = "\u200c"  # U+200C ZERO WIDTH NON-JOINER
 
 
 def encode_marker(user_id: int) -> str:

@@ -3,20 +3,20 @@ app/services/payouts.py — Payouts, Verifiable Receipts, Credentials & Credit S
 
 MOCKED: production would use one atomic transaction and a payment gateway (SPEC.md §18).
 """
-from datetime import datetime, timezone
+
 import hashlib
 import json
 import sqlite3
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List
 
 from fastapi import HTTPException
 
-from app.access import can_view
-from app.db import execute, query_all, query_one
 import app.ledger as ledger
+import app.splits as splits
+from app.db import execute, query_all, query_one
 from app.ledger import canonical
 from app.services.escrow import escrow_transition
-import app.splits as splits
 
 
 def release_milestone(
@@ -87,6 +87,7 @@ def release_milestone(
     # If still empty, check active expert members of the project
     if not expert_ids_set:
         from app.access import membership_state
+
         proj_experts = query_all("SELECT id FROM users WHERE role = 'expert'")
         for pe in proj_experts:
             if membership_state(project["id"], pe["id"]) == "member":
@@ -131,7 +132,9 @@ def release_milestone(
             "rationale": rationale,
             "user_id": eid,
         }
-        receipt_hash = hashlib.sha256(canonical(receipt_data).encode("utf-8")).hexdigest()
+        receipt_hash = hashlib.sha256(
+            canonical(receipt_data).encode("utf-8")
+        ).hexdigest()
         now_iso = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
         execute(
@@ -151,9 +154,7 @@ def release_milestone(
 
         sentence = f"Student contribution share for milestone '{milestone['title']}'."
         if is_agent:
-            sentence += (
-                " includes AI-generated work credited to the human who directed and reviewed it"
-            )
+            sentence += " includes AI-generated work credited to the human who directed and reviewed it"
 
         rationale = {
             "amount_inr": amt,
@@ -181,7 +182,9 @@ def release_milestone(
             "rationale": rationale,
             "user_id": sid,
         }
-        receipt_hash = hashlib.sha256(canonical(receipt_data).encode("utf-8")).hexdigest()
+        receipt_hash = hashlib.sha256(
+            canonical(receipt_data).encode("utf-8")
+        ).hexdigest()
         now_iso = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
         execute(
@@ -218,7 +221,9 @@ def release_milestone(
         actor_type = "system"
         human_owner_id = None
     else:
-        actor_id = user["id"] if user and isinstance(user, (dict, sqlite3.Row)) else None
+        actor_id = (
+            user["id"] if user and isinstance(user, (dict, sqlite3.Row)) else None
+        )
         actor_type = "human"
         human_owner_id = actor_id
 
@@ -290,7 +295,14 @@ def issue_credentials(
         """,
         (milestone_id,),
     )
-    all_uids = sorted(list(set([r["author_id"] for r in author_rows] + [r["reviewer_id"] for r in reviewer_rows])))
+    all_uids = sorted(
+        list(
+            set(
+                [r["author_id"] for r in author_rows]
+                + [r["reviewer_id"] for r in reviewer_rows]
+            )
+        )
+    )
 
     issued = []
     # Support actor=None (system auto-accept path)
@@ -317,7 +329,9 @@ def issue_credentials(
             "project_id": project_id,
             "user_id": uid,
         }
-        credential_hash = hashlib.sha256(canonical(cred_fields).encode("utf-8")).hexdigest()
+        credential_hash = hashlib.sha256(
+            canonical(cred_fields).encode("utf-8")
+        ).hexdigest()
 
         cred_id = execute(
             """
@@ -341,12 +355,14 @@ def issue_credentials(
             },
         )
 
-        issued.append({
-            "credential_id": cred_id,
-            "user_id": uid,
-            "credential_hash": credential_hash,
-            "kind": "certificate",
-        })
+        issued.append(
+            {
+                "credential_id": cred_id,
+                "user_id": uid,
+                "credential_hash": credential_hash,
+                "kind": "certificate",
+            }
+        )
 
     return issued
 
@@ -357,7 +373,9 @@ def build_receipt(milestone_id: int) -> Dict[str, Any]:
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
     escrow = query_one("SELECT * FROM escrows WHERE milestone_id = ?", (milestone_id,))
     if not escrow:
         raise HTTPException(status_code=404, detail="Escrow record not found")
@@ -406,24 +424,30 @@ def build_receipt(milestone_id: int) -> Dict[str, Any]:
             "rationale": rationale,
             "user_id": row["user_id"],
         }
-        recomputed_hash = hashlib.sha256(canonical(receipt_data).encode("utf-8")).hexdigest()
+        recomputed_hash = hashlib.sha256(
+            canonical(receipt_data).encode("utf-8")
+        ).hexdigest()
         is_verified = recomputed_hash == row["receipt_hash"]
         if not is_verified:
             all_lines_verified = False
 
-        lines.append({
-            "user_id": row["user_id"],
-            "name": row["user_name"],
-            "role": row["role"],
-            "amount_inr": row["amount_inr"],
-            "sentence": rationale.get("sentence", ""),
-            "receipt_hash": row["receipt_hash"],
-            "verified": is_verified,
-        })
+        lines.append(
+            {
+                "user_id": row["user_id"],
+                "name": row["user_name"],
+                "role": row["role"],
+                "amount_inr": row["amount_inr"],
+                "sentence": rationale.get("sentence", ""),
+                "receipt_hash": row["receipt_hash"],
+                "verified": is_verified,
+            }
+        )
         payout_hashes.append(row["receipt_hash"])
 
     payouts_sum = sum(l["amount_inr"] for l in lines)
-    total_check = (payouts_sum + fee_inr + ai_reserve_inr == amount_inr) if lines else False
+    total_check = (
+        (payouts_sum + fee_inr + ai_reserve_inr == amount_inr) if lines else False
+    )
 
     payout_hashes_sorted = sorted(payout_hashes)
     milestone_receipt_data = {
@@ -502,7 +526,9 @@ def credit_statement(milestone_id: int) -> Dict[str, Any]:
     if not milestone:
         raise HTTPException(status_code=404, detail="Milestone not found")
 
-    project = query_one("SELECT * FROM projects WHERE id = ?", (milestone["project_id"],))
+    project = query_one(
+        "SELECT * FROM projects WHERE id = ?", (milestone["project_id"],)
+    )
 
     approved_contribs = query_all(
         """
@@ -537,10 +563,16 @@ def credit_statement(milestone_id: int) -> Dict[str, Any]:
         target_units = 1000
         shares_tenths: Dict[int, float] = {}
         for uid, imp in user_impacts.items():
-            shares_tenths[uid] = (imp / total_impact) * target_units if total_impact > 0 else (target_units / len(user_impacts))
+            shares_tenths[uid] = (
+                (imp / total_impact) * target_units
+                if total_impact > 0
+                else (target_units / len(user_impacts))
+            )
 
         floor_tenths = {uid: int(shares_tenths[uid]) for uid in user_impacts}
-        remainders = {uid: shares_tenths[uid] - floor_tenths[uid] for uid in user_impacts}
+        remainders = {
+            uid: shares_tenths[uid] - floor_tenths[uid] for uid in user_impacts
+        }
 
         allocated = sum(floor_tenths.values())
         rem_distribute = target_units - allocated
@@ -563,14 +595,16 @@ def credit_statement(milestone_id: int) -> Dict[str, Any]:
                 (project["id"], uid),
             )
 
-            contributors.append({
-                "user_id": uid,
-                "name": user_info[uid]["name"],
-                "role": user_info[uid]["role"],
-                "impact_score": round(user_impacts[uid], 1),
-                "percentage_share": percentage_share,
-                "credentials": [dict(cr) for cr in creds],
-            })
+            contributors.append(
+                {
+                    "user_id": uid,
+                    "name": user_info[uid]["name"],
+                    "role": user_info[uid]["role"],
+                    "impact_score": round(user_impacts[uid], 1),
+                    "percentage_share": percentage_share,
+                    "credentials": [dict(cr) for cr in creds],
+                }
+            )
 
     from app.integrity.provenance import ai_breakdown
 
