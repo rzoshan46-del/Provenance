@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile — Provenance{% endblock %}
+
+{% block content %}
+<div style="max-width:760px;margin:2rem auto;padding:0 1rem 4rem;">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--line);">
+        <div>
+            <h1 style="font-size:1.75rem;font-weight:900;letter-spacing:-0.03em;margin:0 0 0.25rem;">Edit Profile</h1>
+            <p style="color:var(--muted);font-size:0.88rem;margin:0;">Manage your researcher identity, links, and privacy settings.</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+            <a href="/me" class="btn btn-secondary" style="font-size:0.85rem;">← My Profile</a>
+            {% if profile.is_public and not user.is_minor %}
+            <a href="/u/{{ user.id }}" class="btn btn-secondary" target="_blank" style="font-size:0.85rem;color:var(--info);">View Public Page ↗</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error" style="margin-bottom:1.5rem;">
+        <span class="alert-icon">⚠</span>
+        <div class="alert-content">{{ error }}</div>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/profile/edit" class="card" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:2rem;display:flex;flex-direction:column;gap:1.75rem;">
+
+        {# ── Avatar with Initials Notice ── #}
+        <div style="display:flex;align-items:center;gap:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--line);">
+            <div style="width:4.5rem;height:4.5rem;border-radius:50%;background:rgba(198,255,61,0.15);border:2px solid var(--verified);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:800;font-family:var(--font-mono);color:var(--verified);flex-shrink:0;">
+                {{ initials }}
+            </div>
+            <div>
+                <strong style="font-size:1rem;color:var(--text);display:block;">Identity Avatar</strong>
+                <p style="font-size:0.82rem;color:var(--muted);margin:0.25rem 0 0;line-height:1.45;">
+                    Automatically generated from your initials (<strong>{{ initials }}</strong>). Custom image uploads are disabled by design to eliminate forensic tracking and adversarial image vector vulnerabilities.
+                </p>
+            </div>
+        </div>
+
+        {# ── Core Identity ── #}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
+            <div>
+                <label for="name" style="font-size:0.8rem;font-weight:700;color:var(--text);display:block;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em;">Full Name *</label>
+                <input type="text" id="name" name="name" required value="{{ user.name }}" style="width:100%;padding:0.65rem 0.85rem;background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:0.95rem;">
+            </div>
+
+            <div>
+                <label for="institution" style="font-size:0.8rem;font-weight:700;color:var(--text);display:block;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em;">Affiliation / Institution</label>
+                <input type="text" id="institution" name="institution" value="{{ user.institution or profile.institution or '' }}" placeholder="e.g. University, Lab, or Independent" style="width:100%;padding:0.65rem 0.85rem;background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:0.95rem;">
+            </div>
+        </div>
+
+        <div>
+            <label for="headline" style="font-size:0.8rem;font-weight:700;color:var(--text);display:block;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em;">Headline / Professional Title</label>
+            <input type="text" id="headline" name="headline" value="{{ profile.headline or '' }}" placeholder="e.g. Deep Learning Researcher &amp; Embedded Systems Specialist" style="width:100%;padding:0.65rem 0.85rem;background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:0.95rem;">
+        </div>
+
+        <div>
+            <label for="bio" style="font-size:0.8rem;font-weight:700;color:var(--text);display:block;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em;">Researcher Bio</label>
+            <textarea id="bio" name="bio" rows="3" placeholder="Tell other sponsors and researchers about your technical focus and research interests..." style="width:100%;padding:0.65rem 0.85rem;background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:0.92rem;line-height:1.5;">{{ user.bio or profile.bio or '' }}</textarea>
+        </div>
+
+        <div>
+            <label for="skills" style="font-size:0.8rem;font-weight:700;color:var(--text);display:block;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em;">Skills (comma-separated)</label>
+            <input type="text" id="skills" name="skills" value="{{ skills_str }}" placeholder="e.g. python, pytorch, computer vision, smart contracts" style="width:100%;padding:0.65rem 0.85rem;background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:0.92rem;">
+        </div>
+
+        {# ── External Links ── #}
+        <div style="padding-top:1rem;border-top:1px solid var(--line);">
+            <h3 style="font-size:0.95rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;">Verified Profiles &amp; Links</h3>
+            <div style="display:flex;flex-direction:column;gap:1rem;">
+                <div>
+                    <label for="github_url" style="font-size:0.8rem;font-weight:600;color:var(--muted);display:block;margin-bottom:0.3rem;">GitHub Profile URL</label>
+                    <input type="url" id="github_url" name="github_url" value="{{ profile.github_url or '' }}" placeholder="https://github.com/username" style="width:100%;padding:0.65rem 0.85rem;background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:0.9rem;">
+                </div>
+                <div>
+                    <label for="linkedin_url" style="font-size:0.8rem;font-weight:600;color:var(--muted);display:block;margin-bottom:0.3rem;">LinkedIn Profile URL</label>
+                    <input type="url" id="linkedin_url" name="linkedin_url" value="{{ profile.linkedin_url or '' }}" placeholder="https://linkedin.com/in/username" style="width:100%;padding:0.65rem 0.85rem;background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:0.9rem;">
+                </div>
+                <div>
+                    <label for="portfolio_url" style="font-size:0.8rem;font-weight:600;color:var(--muted);display:block;margin-bottom:0.3rem;">Portfolio / Personal Website</label>
+                    <input type="url" id="portfolio_url" name="portfolio_url" value="{{ profile.portfolio_url or '' }}" placeholder="https://yourdomain.org" style="width:100%;padding:0.65rem 0.85rem;background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:0.9rem;">
+                </div>
+            </div>
+        </div>
+
+        {# ── Privacy Toggles ── #}
+        <div style="padding-top:1rem;border-top:1px solid var(--line);">
+            <h3 style="font-size:0.95rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">Privacy &amp; Visibility Controls</h3>
+            <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1.25rem;">Deterministic server-side switches. Turning off a toggle removes the data from all public APIs and views.</p>
+
+            <div style="display:flex;flex-direction:column;gap:1rem;">
+                <label style="display:flex;align-items:flex-start;gap:0.85rem;cursor:pointer;">
+                    <input type="checkbox" name="is_public" value="1" {% if profile.is_public %}checked{% endif %} style="margin-top:0.25rem;transform:scale(1.2);">
+                    <div>
+                        <strong style="color:var(--text);font-size:0.92rem;">Public Profile Enabled</strong>
+                        <div style="color:var(--muted);font-size:0.8rem;">Allow anonymous and team visitors to view your achievements at <code>/u/{{ user.id }}</code>. When disabled, your public profile returns 404 Not Found.</div>
+                    </div>
+                </label>
+
+                <label style="display:flex;align-items:flex-start;gap:0.85rem;cursor:pointer;">
+                    <input type="checkbox" name="show_institution" value="1" {% if profile.show_institution %}checked{% endif %} style="margin-top:0.25rem;transform:scale(1.2);">
+                    <div>
+                        <strong style="color:var(--text);font-size:0.92rem;">Show Institution / Affiliation</strong>
+                        <div style="color:var(--muted);font-size:0.8rem;">Display your affiliated university or company on your public profile.</div>
+                    </div>
+                </label>
+
+                <label style="display:flex;align-items:flex-start;gap:0.85rem;cursor:pointer;">
+                    <input type="checkbox" name="show_credentials" value="1" {% if profile.show_credentials %}checked{% endif %} style="margin-top:0.25rem;transform:scale(1.2);">
+                    <div>
+                        <strong style="color:var(--text);font-size:0.92rem;">Show Verified Credentials &amp; Badges</strong>
+                        <div style="color:var(--muted);font-size:0.8rem;">Display your cryptographic certificates on your public profile.</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        {# ── Privacy Note ── #}
+        <div style="font-size:0.8rem;color:var(--muted);background:rgba(0,0,0,0.2);padding:0.75rem 1rem;border-radius:var(--radius-sm);border-left:3px solid var(--verified);">
+            🔒 <strong>Strict Privacy Invariant:</strong> Your email address (<strong>{{ user.email }}</strong>) is strictly internal and is <strong>never displayed on your public profile</strong> under any setting.
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="background:var(--verified);color:#0B0D10;font-weight:700;font-size:0.95rem;padding:0.75rem 1.5rem;border-radius:var(--radius-sm);cursor:pointer;align-self:flex-start;">
+            Save Profile &amp; Privacy Settings
+        </button>
+    </form>
+</div>
+{% endblock %}

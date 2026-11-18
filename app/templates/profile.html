@@ -6,15 +6,19 @@
 
     {# ── Identity row ── #}
     <div style="display:flex;align-items:flex-start;gap:1.5rem;flex-wrap:wrap;margin-bottom:2.5rem;padding-bottom:2rem;border-bottom:1px solid var(--line)">
-        <div style="width:4rem;height:4rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;border:2px solid var(--line);
-            {% if user.role == 'sponsor' %}background:rgba(255,176,32,.12){% elif user.role == 'expert' %}background:rgba(61,214,255,.12){% elif user.role == 'admin' %}background:rgba(255,77,79,.12){% else %}background:rgba(198,255,61,.12){% endif %}">
-            {% if user.role=='sponsor' %}🏛{% elif user.role=='expert' %}🔬{% elif user.role=='admin' %}🛡{% else %}🎓{% endif %}
+        <div style="width:4.25rem;height:4.25rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:900;font-family:var(--font-mono);flex-shrink:0;border:2px solid var(--line);
+            {% if user.role == 'sponsor' %}background:rgba(255,176,32,.12);color:var(--pending);border-color:var(--pending);{% elif user.role == 'expert' %}background:rgba(61,214,255,.12);color:var(--info);border-color:var(--info);{% elif user.role == 'admin' %}background:rgba(255,77,79,.12);color:var(--broken);border-color:var(--broken);{% else %}background:rgba(198,255,61,.12);color:var(--verified);border-color:var(--verified);{% endif %}">
+            {{ initials or user.name[:2]|upper }}
         </div>
         <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.3rem">
                 <h1 style="font-size:1.6rem;font-weight:900;letter-spacing:-.04em;margin:0">{{ user.name }}</h1>
                 <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
                 {% if user.is_minor %}<span class="chip chip-amber" style="font-size:.7rem">MINOR</span>{% endif %}
+                <a href="/profile/edit" class="btn btn-secondary btn-sm" style="font-size:0.78rem;margin-left:auto;">Edit Profile</a>
+                {% if not user.is_minor %}
+                <a href="/u/{{ user.id }}" class="btn btn-secondary btn-sm" style="font-size:0.78rem;color:var(--info);">Public Page</a>
+                {% endif %}
             </div>
             <div style="font-size:.85rem;color:var(--muted);margin-bottom:.6rem">
                 {{ user.institution or "Independent Researcher" }}
@@ -45,16 +49,16 @@
                 </h2>
                 <div style="display:flex;flex-direction:column;gap:.5rem">
                     {% set action_labels = {
-                        'contribution_submitted': ('📝','Contribution submitted','20 cr each'),
-                        'contribution_reviewed':  ('✅','Work reviewed & verified','30 cr each'),
-                        'milestone_accepted':     ('🏆','Milestone accepted','50 cr each'),
-                        'agent_action_approved':  ('🤖','AI draft approved','15 cr each'),
-                        'charter_accepted':       ('📜','Charter signed','5 cr each')
+                        'contribution_submitted': ('Submission','Contribution submitted','20 cr each'),
+                        'contribution_reviewed':  ('Review','Work reviewed & verified','30 cr each'),
+                        'milestone_accepted':     ('Milestone','Milestone accepted','50 cr each'),
+                        'agent_action_approved':  ('AI Action','AI draft approved','15 cr each'),
+                        'charter_accepted':       ('Charter','Charter signed','5 cr each')
                     } %}
                     {% for key, val in cr_break.items() %}
-                    {% set info = action_labels.get(key, ('·', key, '')) %}
+                    {% set info = action_labels.get(key, ('Action', key, '')) %}
                     <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .85rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md)">
-                        <span style="font-size:1rem;width:1.5rem;text-align:center">{{ info[0] }}</span>
+                        <span class="chip chip-muted" style="font-size:0.65rem;flex-shrink:0;">{{ info[0] }}</span>
                         <span style="flex:1;font-size:.85rem">{{ info[1] }}</span>
                         <span style="font-size:.75rem;color:var(--muted)">{{ info[2] }}</span>
                         <span style="font-family:var(--font-mono);font-size:.9rem;font-weight:800;color:var(--verified);min-width:3.5rem;text-align:right">{{ val }} cr</span>

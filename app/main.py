@@ -2,7 +2,16 @@ import json
 import os
 import sqlite3
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict, Optional
+
+try:
+    from dotenv import load_dotenv
+
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
+    load_dotenv(dotenv_path=_env_path, override=False)
+except ImportError:
+    pass
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
@@ -18,8 +27,9 @@ from app.config import (
     get_base_url,
     get_session_secret,
     google_auth_enabled,
+    is_production,
 )
-from app.db import init_db, query_all, query_one
+from app.db import execute, init_db, query_all, query_one
 from app.deps import current_user, require_role
 from app.seed import seed_projects, seed_users
 from app.services.projects import create_project, join_project, publish_charter
@@ -37,12 +47,36 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(
-    title="Provenance",
-    description="Collaborative Research Ecosystem",
-    lifespan=lifespan,
+from . import create_app
+# Create FastAPI app with lifespan
+def _create_app_with_lifespan():
+    return create_app(lifespan=lifespan)
+app = _create_app_with_lifespan()
+
+
+# Attach global objects to app.state for routers
+# Attach global objects to app.state for routers
+# app.state.oauth = oauth  # will be set after OAuth init
+
+
+
+# Add CORS middleware for Render deployment
+from fastapi.middleware.cors import CORSMiddleware
+import os
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.getenv("FRONTEND_ORIGIN", "*")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-app.add_middleware(SessionMiddleware, secret_key=get_session_secret())
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=get_session_secret(),
+    same_site="lax",
+    https_only=is_production(),
+)
 
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -58,7 +92,12 @@ if google_auth_enabled():
         client_kwargs={"scope": "openid email profile"},
     )
 
-# Register custom Jinja filters
+# Include routers
+from app.routers import auth, users, projects, health
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(projects.router)
+app.include_router(health.router)
 templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
 
 
@@ -136,7 +175,27 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
             },
             status_code=403,
         )
+    if exc.status_code == 404:
+        accept = request.headers.get("accept", "")
+        if not request.url.path.startswith("/api/") and ("text/html" in accept or "*/*" in accept):
+            user = current_user(request)
+            all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+            return templates.TemplateResponse(
+                request,
+                "404.html",
+                {
+                    "user": user,
+                    "all_users": all_users,
+                    "detail": exc.detail,
+                },
+                status_code=404,
+            )
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return RedirectResponse(url="/static/favicon.svg", status_code=302)
 
 
 # ─────────────────────────────────────────────
@@ -207,6 +266,20 @@ def home(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
     )
 
 
+@app.get("/overview")
+@app.get("/about")
+def project_overview(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
+    all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    return templates.TemplateResponse(
+        request,
+        "overview.html",
+        {
+            "user": user,
+            "all_users": all_users,
+        },
+    )
+
+
 @app.get("/login")
 def login_page(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
     """Login page. Production uses Google OAuth when enabled; demo persona login remains optional only in demo mode."""
@@ -258,7 +331,16 @@ async def google_login(request: Request):
             status_code=503,
             detail="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
         )
-    redirect_uri = f"{get_base_url()}/auth/google/callback"
+
+    configured_base = get_base_url()
+    host = request.headers.get("host") or ""
+    # Ensure cookie domain matches the exact Google authorized redirect URI
+    if configured_base.startswith("http") and host and host not in configured_base:
+        return RedirectResponse(
+            url=f"{configured_base}/auth/google/login", status_code=303
+        )
+
+    redirect_uri = f"{configured_base}/auth/google/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
@@ -273,9 +355,10 @@ async def google_callback(request: Request):
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as exc:
-        raise HTTPException(
-            status_code=401, detail=f"Google sign-in failed: {exc}"
-        ) from exc
+        err_msg = str(exc)
+        if "mismatching_state" in err_msg:
+            err_msg = "OAuth session expired or host mismatched. Please open http://localhost:8000/login and try again."
+        return RedirectResponse(url=f"/login?error={err_msg}", status_code=303)
 
     userinfo = token.get("userinfo")
     if not userinfo:
@@ -293,14 +376,26 @@ async def google_callback(request: Request):
         )
 
     user = query_one("SELECT * FROM users WHERE lower(email) = ?", (email,))
+    is_new = False
     if not user:
-        # Keep production-safe defaults: no arbitrary account creation for unknown Google identities.
-        raise HTTPException(
-            status_code=403,
-            detail="This Google account is not registered for Provenance.",
+        name = userinfo.get("name") or email.split("@")[0]
+        # Auto-provision authenticated Google user as a verified student researcher
+        user_id = execute(
+            """
+            INSERT INTO users (name, email, role, verification_level, institution, skills, conflict_orgs)
+            VALUES (?, ?, 'student', 1, 'Google Authenticated', '["python","research"]', '[]')
+            """,
+            (name, email),
         )
+        user = query_one("SELECT * FROM users WHERE id = ?", (user_id,))
+        is_new = True
 
-    response = RedirectResponse(url="/", status_code=303)
+    import app.profiles as profiles
+
+    prof = profiles.get_or_create_profile(user["id"])
+    target_url = "/onboarding" if is_new or prof.get("onboarding_completed") == 0 else "/"
+
+    response = RedirectResponse(url=target_url, status_code=303)
     response.set_cookie(
         key="session_user_id",
         value=str(user["id"]),
@@ -354,12 +449,10 @@ def my_profile(request: Request, user: Optional[sqlite3.Row] = Depends(current_u
     # Credentials
     my_creds = query_all(
         """
-        SELECT c.credential_hash, c.issued_at, c.contribution_hash,
-               m.title as milestone_title, proj.title as project_title
+        SELECT c.credential_hash, c.issued_at,
+               c.kind as milestone_title, proj.title as project_title
         FROM credentials c
-        JOIN contributions con ON con.id = c.contribution_id
-        JOIN milestones m ON m.id = con.milestone_id
-        JOIN projects proj ON proj.id = m.project_id
+        JOIN projects proj ON proj.id = c.project_id
         WHERE c.user_id = ?
         ORDER BY c.issued_at DESC
         """,
@@ -367,12 +460,19 @@ def my_profile(request: Request, user: Optional[sqlite3.Row] = Depends(current_u
     )
 
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    import app.profiles as profiles
+
+    prof = profiles.get_or_create_profile(user["id"])
+    initials = profiles.get_initials(user["name"])
+
     return templates.TemplateResponse(
         request,
         "profile.html",
         {
             "user": user,
             "all_users": all_users,
+            "profile": prof,
+            "initials": initials,
             "skills": skills,
             "cr_total": cr_total,
             "cr_hist": cr_hist,
@@ -383,21 +483,207 @@ def my_profile(request: Request, user: Optional[sqlite3.Row] = Depends(current_u
     )
 
 
-@app.get("/admin")
-def admin_console(
-    request: Request, admin: sqlite3.Row = Depends(require_role("admin"))
+@app.get("/onboarding")
+def onboarding_page(
+    request: Request, user: Optional[sqlite3.Row] = Depends(current_user)
 ):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
     return templates.TemplateResponse(
+        request, "onboarding.html", {"user": user, "all_users": all_users}
+    )
+
+
+@app.post("/onboarding")
+def onboarding_submit(
+    request: Request,
+    role: str = Form(...),
+    institution: str = Form(""),
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    role_clean = role.strip().lower()
+    if role_clean == "admin":
+        all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+        return templates.TemplateResponse(
+            request,
+            "onboarding.html",
+            {
+                "user": user,
+                "all_users": all_users,
+                "error": "Admin role cannot be self-selected.",
+            },
+            status_code=400,
+        )
+    import app.profiles as profiles
+
+    try:
+        profiles.complete_onboarding(user["id"], role_clean, institution)
+    except ValueError as e:
+        all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+        return templates.TemplateResponse(
+            request,
+            "onboarding.html",
+            {
+                "user": user,
+                "all_users": all_users,
+                "error": str(e),
+            },
+            status_code=400,
+        )
+    return RedirectResponse(
+        url="/profile/edit?msg=Role+selected+successfully!+You+can+now+customize+your+profile.",
+        status_code=303,
+    )
+
+
+@app.get("/profile/edit")
+def edit_profile_page(
+    request: Request, user: Optional[sqlite3.Row] = Depends(current_user)
+):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    import app.profiles as profiles
+
+    prof = profiles.get_or_create_profile(user["id"])
+    all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    skills = []
+    try:
+        skills = json.loads(user["skills"] or "[]")
+    except Exception:
+        pass
+    initials = profiles.get_initials(user["name"])
+    return templates.TemplateResponse(
         request,
-        "placeholder.html",
+        "profile_edit.html",
         {
-            "title": "Admin Console",
-            "module_note": "Admin Console & System Governance (Admin Role Confirmed)",
-            "user": admin,
+            "user": user,
             "all_users": all_users,
+            "profile": prof,
+            "skills_str": ", ".join(skills),
+            "initials": initials,
         },
     )
+
+
+@app.post("/profile/edit")
+def edit_profile_submit(
+    request: Request,
+    name: str = Form(...),
+    headline: str = Form(""),
+    bio: str = Form(""),
+    institution: str = Form(""),
+    skills: str = Form(""),
+    github_url: str = Form(""),
+    linkedin_url: str = Form(""),
+    portfolio_url: str = Form(""),
+    is_public: Optional[str] = Form(None),
+    show_institution: Optional[str] = Form(None),
+    show_credentials: Optional[str] = Form(None),
+    user: Optional[sqlite3.Row] = Depends(current_user),
+):
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    import app.profiles as profiles
+
+    profiles.update_profile(
+        user_id=user["id"],
+        name=name,
+        headline=headline,
+        bio=bio,
+        institution=institution,
+        skills_raw=skills,
+        github_url=github_url,
+        linkedin_url=linkedin_url,
+        portfolio_url=portfolio_url,
+        is_public=bool(is_public),
+        show_institution=bool(show_institution),
+        show_credentials=bool(show_credentials),
+    )
+    return RedirectResponse(url="/me?msg=Profile+updated+successfully!", status_code=303)
+
+
+@app.get("/u/{user_id}")
+def public_profile_page(user_id: int, request: Request):
+    target = query_one("SELECT * FROM users WHERE id = ?", (user_id,))
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    # Minors get NO public profile
+    if target["is_minor"] == 1:
+        raise HTTPException(status_code=404, detail="Profile not available.")
+
+    import app.profiles as profiles
+
+    prof = profiles.get_or_create_profile(user_id)
+    viewer = current_user(request)
+    is_owner = bool(viewer and viewer["id"] == user_id)
+    is_admin = bool(viewer and viewer["role"] == "admin")
+
+    # Privacy toggle check
+    if prof["is_public"] == 0 and not is_owner and not is_admin:
+        raise HTTPException(status_code=404, detail="This profile is private.")
+
+    import app.credits as cr
+
+    cr_total = cr.total(user_id)
+
+    skills = []
+    try:
+        skills = json.loads(target["skills"] or "[]")
+    except Exception:
+        pass
+
+    # Projects
+    projects = query_all(
+        """
+        SELECT DISTINCT p.id, p.title, p.engagement_model, p.sensitivity_label
+        FROM charter_acceptances ca
+        JOIN projects p ON p.id = ca.project_id
+        WHERE ca.user_id = ? AND ca.engagement_model_ack = 1 AND p.sensitivity_label != 'confidential'
+        ORDER BY p.id DESC
+        """,
+        (user_id,),
+    )
+
+    # Credentials (respects show_credentials toggle)
+    creds = []
+    if prof["show_credentials"] or is_owner or is_admin:
+        creds = query_all(
+            """
+            SELECT c.credential_hash, c.issued_at,
+                   c.kind as milestone_title, p.title as project_title
+            FROM credentials c
+            JOIN projects p ON p.id = c.project_id
+            WHERE c.user_id = ?
+            ORDER BY c.issued_at DESC
+            """,
+            (user_id,),
+        )
+
+    all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    initials = profiles.get_initials(target["name"])
+
+    return templates.TemplateResponse(
+        request,
+        "public_profile.html",
+        {
+            "user": viewer,
+            "all_users": all_users,
+            "target_user": target,
+            "profile": prof,
+            "initials": initials,
+            "cr_total": cr_total,
+            "skills": skills,
+            "projects": projects,
+            "creds": creds,
+        },
+    )
+
+
+
 
 
 def _action_category_color(action: Optional[str]) -> str:

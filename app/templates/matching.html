@@ -40,7 +40,7 @@
         <p class="muted-text">The matching agent ranks candidates by skill overlap, verification level, and newcomer boost.</p>
     </div>
     <form method="POST" action="/projects/{{ project.id }}/matching">
-        <button type="submit" class="btn btn-primary">⚡ Find Team</button>
+        <button type="submit" class="btn btn-primary">Find Team</button>
     </form>
 </div>
 
@@ -161,13 +161,13 @@
 {# ── Excluded section ── #}
 {% if match_result.excluded %}
 <div class="excluded-section">
-    <h3 style="font-size:0.95rem;color:var(--broken);margin-bottom:0.75rem">⚠ Excluded and Why</h3>
+    <h3 style="font-size:0.95rem;color:var(--broken);margin-bottom:0.75rem">Excluded Candidates</h3>
     {% for ex in match_result.excluded %}
     <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;flex-wrap:wrap">
         <strong style="color:var(--text)">{{ ex.name }}</strong>
         <span class="role-chip role-{{ ex.role }}" style="font-size:0.72rem">{{ ex.role | upper }}</span>
         <span class="chip" style="background:rgba(255,77,79,0.15);color:var(--broken);border:1px solid rgba(255,77,79,0.35);font-size:0.75rem;font-weight:700">
-            {% if ex.reason == 'conflict of interest' %}⚡ CONFLICT OF INTEREST{% else %}{{ ex.reason | upper }}{% endif %}
+            {% if ex.reason == 'conflict of interest' %}CONFLICT OF INTEREST{% else %}{{ ex.reason | upper }}{% endif %}
         </span>
     </div>
     {% endfor %}

@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Project Overview & Architecture — Provenance (CritX){% endblock %}
+{% block meta_description %}Comprehensive architecture, problem definition, cryptographic specifications, and engineering foundations of the Provenance collaborative R&D ecosystem.{% endblock %}
+
+{% block content %}
+<div class="overview-wrapper" style="max-width:960px;margin:0 auto;padding:2rem 0 4rem;">
+    <!-- Hero / Header -->
+    <div style="border-bottom:1px solid var(--line);padding-bottom:2.5rem;margin-bottom:3rem;">
+        <div style="display:inline-flex;align-items:center;gap:0.5rem;background:rgba(198,255,61,0.08);border:1px solid rgba(198,255,61,0.2);padding:0.25rem 0.75rem;border-radius:var(--radius-sm);color:var(--verified);font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:1.25rem;">
+            <span>System Specification & Architecture</span>
+        </div>
+        <h1 style="font-size:clamp(2rem,4vw,3.2rem);font-weight:900;letter-spacing:-0.04em;line-height:1.1;margin:0 0 1rem 0;">
+            Provenance <span style="color:var(--muted);font-weight:400;">(CritX)</span>
+        </h1>
+        <p style="font-size:1.2rem;color:var(--text);line-height:1.6;font-weight:500;margin:0 0 1rem 0;">
+            Cryptographically Verified Collaborative Research Ecosystem, Attribution Engine, and Value Distribution Platform
+        </p>
+        <p style="font-size:0.95rem;color:var(--muted);line-height:1.7;margin:0 0 2rem 0;max-width:760px;">
+            A unified zero-trust platform connecting research sponsors, domain experts, and student researchers into verified project teams with an append-only SHA-256 audit ledger, bound AI scoping firewalls, and tamper-evident credentialing.
+        </p>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;">
+            <a href="/projects" class="btn btn-primary" style="padding:0.65rem 1.4rem;font-size:0.9rem;">Explore Projects</a>
+            <a href="/ledger" class="btn btn-secondary" style="padding:0.65rem 1.4rem;font-size:0.9rem;">Inspect Hash Ledger</a>
+            <a href="/" class="btn btn-secondary" style="padding:0.65rem 1.4rem;font-size:0.9rem;">Interactive Console</a>
+        </div>
+    </div>
+
+    <!-- 1. Executive Summary & Biography -->
+    <section style="margin-bottom:3.5rem;">
+        <h2 style="font-size:1.35rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:1rem;border-left:3px solid var(--verified);padding-left:0.75rem;">
+            1. Project Biography & Executive Summary
+        </h2>
+        <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.5rem;line-height:1.75;font-size:0.92rem;color:var(--text);">
+            <p style="margin:0 0 1rem 0;">
+                <strong>Provenance (CritX)</strong> was architected to address fundamental systemic failures in distributed scientific and industrial research. In conventional academic and industrial collaborations, intellectual property attribution is vulnerable to ghostwriting, research briefs leak through uncontrolled AI prompting, milestone payments suffer dispute-heavy delays, and student contributors frequently lose recognition for their core deliverables.
+            </p>
+            <p style="margin:0;">
+                Designed for high-trust environments (such as hackFront India at IIIT Delhi), Provenance provides an immutable, transparent substrate where every charter acceptance, confidential brief disclosure, AI-assisted code commit, expert peer review, and rupee payout is cryptographically logged on an append-only hash chain.
+            </p>
+        </div>
+    </section>
+
+    <!-- 2. The Core Problems Solved -->
+    <section style="margin-bottom:3.5rem;">
+        <h2 style="font-size:1.35rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:1rem;border-left:3px solid var(--info);padding-left:0.75rem;">
+            2. The Core Problems Solved
+        </h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;">
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;">
+                <div style="font-size:0.75rem;font-weight:700;color:var(--broken);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.4rem;">Attribution & Plagiarism</div>
+                <h3 style="font-size:1.05rem;font-weight:700;margin:0 0 0.5rem 0;">Attribution Theft & Ghostwriting</h3>
+                <p style="font-size:0.85rem;color:var(--muted);line-height:1.6;margin:0;">
+                    Junior researchers and students regularly submit critical algorithms only to have credit claimed by institutional leads. Provenance cryptographically binds every submission to its author's identity and generates self-sovereign 64-hex credentials that no third party can revoke.
+                </p>
+            </div>
+
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;">
+                <div style="font-size:0.75rem;font-weight:700;color:var(--pending);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.4rem;">Confidentiality & AI Risk</div>
+                <h3 style="font-size:1.05rem;font-weight:700;margin:0 0 0.5rem 0;">AI Model Data Leaks & Prompt Injection</h3>
+                <p style="font-size:0.85rem;color:var(--muted);line-height:1.6;margin:0;">
+                    Sponsor research briefs contain proprietary formulations that must never be ingested by external multi-tenant AI models. The Provenance AI Firewall enforces role-scoped boundaries, strips prompt injection attacks, and attributes outputs strictly to human directors.
+                </p>
+            </div>
+
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;">
+                <div style="font-size:0.75rem;font-weight:700;color:var(--verified);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.4rem;">Financial Fairness</div>
+                <h3 style="font-size:1.05rem;font-weight:700;margin:0 0 0.5rem 0;">Arbitrary Splits & Escrow Disputes</h3>
+                <p style="font-size:0.85rem;color:var(--muted);line-height:1.6;margin:0;">
+                    Unclear milestone conditions lead to unpaid student labor and sponsor frustration. Funds are locked in smart escrow before work begins and released via the Hare-Niemeyer largest-remainder algorithm, strictly conserving every single rupee.
+                </p>
+            </div>
+
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;">
+                <div style="font-size:0.75rem;font-weight:700;color:var(--info);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.4rem;">Information Leakage</div>
+                <h3 style="font-size:1.05rem;font-weight:700;margin:0 0 0.5rem 0;">Undetectable Document Leaks</h3>
+                <p style="font-size:0.85rem;color:var(--muted);line-height:1.6;margin:0;">
+                    When confidential research documents are downloaded, provenance is lost. Provenance embeds invisible, zero-width steganographic watermarks encoding reader identity and project hashes directly into exported research texts.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Primary Objectives & Invariants -->
+    <section style="margin-bottom:3.5rem;">
+        <h2 style="font-size:1.35rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:1rem;border-left:3px solid var(--pending);padding-left:0.75rem;">
+            3. Architectural Invariants & Non-Negotiables
+        </h2>
+        <div style="border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;background:var(--panel);">
+            <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--line);display:flex;gap:1rem;align-items:flex-start;">
+                <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--verified);background:rgba(198,255,61,0.1);padding:0.2rem 0.5rem;border-radius:3px;">INV-01</span>
+                <div>
+                    <strong style="font-size:0.92rem;color:var(--text);display:block;margin-bottom:0.25rem;">Append-Only Hash Chain Ledger</strong>
+                    <span style="font-size:0.85rem;color:var(--muted);line-height:1.6;">Every state-changing operation executes a call to <code style="font-size:0.8rem;color:var(--info);">ledger.append()</code>. Modifying any prior record breaks SHA-256 linkage from that point onward, immediately detectable by independent verifiers.</span>
+                </div>
+            </div>
+            <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--line);display:flex;gap:1rem;align-items:flex-start;">
+                <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--info);background:rgba(77,208,225,0.1);padding:0.2rem 0.5rem;border-radius:3px;">INV-02</span>
+                <div>
+                    <strong style="font-size:0.92rem;color:var(--text);display:block;margin-bottom:0.25rem;">AI Agents Never Earn or Act Unattended</strong>
+                    <span style="font-size:0.85rem;color:var(--muted);line-height:1.6;">All agentic AI output (scoping proposals, matching recommendations, code snippets) is generated in a pending state and must be explicitly approved by a designated human owner before landing.</span>
+                </div>
+            </div>
+            <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--line);display:flex;gap:1rem;align-items:flex-start;">
+                <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--broken);background:rgba(255,107,107,0.1);padding:0.2rem 0.5rem;border-radius:3px;">INV-03</span>
+                <div>
+                    <strong style="font-size:0.92rem;color:var(--text);display:block;margin-bottom:0.25rem;">Explicit Conflict-of-Interest Filtering</strong>
+                    <span style="font-size:0.85rem;color:var(--muted);line-height:1.6;">Domain experts associated with competing organizations (defined in <code style="font-size:0.8rem;color:var(--info);">conflict_orgs</code>) are deterministically excluded from viewing confidential briefs or reviewing submissions.</span>
+                </div>
+            </div>
+            <div style="padding:1rem 1.25rem;display:flex;gap:1rem;align-items:flex-start;">
+                <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--pending);background:rgba(255,183,77,0.1);padding:0.2rem 0.5rem;border-radius:3px;">INV-04</span>
+                <div>
+                    <strong style="font-size:0.92rem;color:var(--text);display:block;margin-bottom:0.25rem;">Zero Minor Exposure & Privacy Guarantees</strong>
+                    <span style="font-size:0.85rem;color:var(--muted);line-height:1.6;">Minors under 18 receive zero public profile exposure (<code style="font-size:0.8rem;color:var(--info);">/u/{id}</code> returns 404). Personal email addresses are never rendered on public endpoints.</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. System Mechanics & Lifecycle -->
+    <section style="margin-bottom:3.5rem;">
+        <h2 style="font-size:1.35rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:1rem;border-left:3px solid var(--text);padding-left:0.75rem;">
+            4. End-to-End System Mechanics
+        </h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.75rem;">
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1rem;">
+                <div style="font-size:0.72rem;color:var(--muted);font-weight:700;">STAGE 01</div>
+                <div style="font-weight:700;font-size:0.9rem;margin:0.2rem 0 0.4rem 0;">Project Posting</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;">Sponsor posts problem summary, confidential brief, and initial escrow funding.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1rem;">
+                <div style="font-size:0.72rem;color:var(--muted);font-weight:700;">STAGE 02</div>
+                <div style="font-weight:700;font-size:0.9rem;margin:0.2rem 0 0.4rem 0;">Charter Definition</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;">Sponsor and leads establish immutable charter rules, IP terms, and milestone requirements.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1rem;">
+                <div style="font-size:0.72rem;color:var(--muted);font-weight:700;">STAGE 03</div>
+                <div style="font-weight:700;font-size:0.9rem;margin:0.2rem 0 0.4rem 0;">Team Matching</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;">AI engine evaluates candidate skills, conflict organizations, and verification credentials.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1rem;">
+                <div style="font-size:0.72rem;color:var(--muted);font-weight:700;">STAGE 04</div>
+                <div style="font-weight:700;font-size:0.9rem;margin:0.2rem 0 0.4rem 0;">Charter Acceptance</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;">Contributors explicitly sign the charter version. Unsigned members cannot view confidential briefs.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1rem;">
+                <div style="font-size:0.72rem;color:var(--muted);font-weight:700;">STAGE 05</div>
+                <div style="font-weight:700;font-size:0.9rem;margin:0.2rem 0 0.4rem 0;">Milestone Escrow</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;">Funds transition to funded status. Work cannot commence until escrow verification passes.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1rem;">
+                <div style="font-size:0.72rem;color:var(--muted);font-weight:700;">STAGE 06</div>
+                <div style="font-weight:700;font-size:0.9rem;margin:0.2rem 0 0.4rem 0;">Work & Attestation</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;">Artifacts submitted with SHA-256 hashes, AI declarations, and automated similarity checks.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1rem;">
+                <div style="font-size:0.72rem;color:var(--muted);font-weight:700;">STAGE 07</div>
+                <div style="font-weight:700;font-size:0.9rem;margin:0.2rem 0 0.4rem 0;">Expert Review</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;">Assigned domain expert reviews deliverables against acceptance criteria without conflict of interest.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1rem;">
+                <div style="font-size:0.72rem;color:var(--muted);font-weight:700;">STAGE 08</div>
+                <div style="font-weight:700;font-size:0.9rem;margin:0.2rem 0 0.4rem 0;">Release & Credential</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.5;">Largest-remainder rupee split released to contributors; permanent cryptographic credentials minted.</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. Technical Architecture -->
+    <section style="margin-bottom:3.5rem;">
+        <h2 style="font-size:1.35rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:1rem;border-left:3px solid var(--verified);padding-left:0.75rem;">
+            5. Technical Stack & Data Architecture
+        </h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;">
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;">
+                <h3 style="font-size:0.95rem;font-weight:700;margin:0 0 0.75rem 0;color:var(--verified);">Backend & Routing Core</h3>
+                <ul style="font-size:0.85rem;color:var(--muted);padding-left:1.2rem;margin:0;line-height:1.8;">
+                    <li><strong>Framework:</strong> FastAPI &amp; Starlette ASGI framework</li>
+                    <li><strong>Templating:</strong> Jinja2 server-rendered architecture</li>
+                    <li><strong>Session Security:</strong> Cryptographic signed HTTP-only sessions</li>
+                    <li><strong>Authentication:</strong> Google OAuth 2.0 with dynamic redirect host negotiation and local persona emulation</li>
+                </ul>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;">
+                <h3 style="font-size:0.95rem;font-weight:700;margin:0 0 0.75rem 0;color:var(--info);">Cryptographic Data Storage</h3>
+                <ul style="font-size:0.85rem;color:var(--muted);padding-left:1.2rem;margin:0;line-height:1.8;">
+                    <li><strong>Database:</strong> SQLite with 15 normalized relational tables</li>
+                    <li><strong>Hashing Standard:</strong> Canonical JSON serialization with SHA-256</li>
+                    <li><strong>Chain Structure:</strong> Hash linked list (<code style="font-size:0.78rem;">entry_hash = H(prev_hash || payload)</code>)</li>
+                    <li><strong>Steganography:</strong> Invisible zero-width unicode watermark encoder</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- 6. Stakeholders & Use Cases -->
+    <section style="margin-bottom:3.5rem;">
+        <h2 style="font-size:1.35rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:1rem;border-left:3px solid var(--info);padding-left:0.75rem;">
+            6. Primary Personas & Responsibilities
+        </h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1rem;">
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.2rem;">
+                <div style="font-weight:700;color:var(--text);font-size:0.95rem;margin-bottom:0.35rem;">Research Sponsors</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.6;">Post research challenges, fund escrow milestones, review candidate rosters, and obtain verifiable deliverables with strict IP protection.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.2rem;">
+                <div style="font-weight:700;color:var(--text);font-size:0.95rem;margin-bottom:0.35rem;">Domain Experts</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.6;">Guide research directions, perform rigorous peer reviews on student artifacts, and receive transparent honorariums and expert attribution.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.2rem;">
+                <div style="font-weight:700;color:var(--text);font-size:0.95rem;margin-bottom:0.35rem;">Student Researchers</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.6;">Collaborate on production-grade R&amp;D challenges, earn non-revocable 64-hex credentials, build public portfolios, and receive fair payouts.</div>
+            </div>
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.2rem;">
+                <div style="font-weight:700;color:var(--text);font-size:0.95rem;margin-bottom:0.35rem;">System Administrators</div>
+                <div style="font-size:0.82rem;color:var(--muted);line-height:1.6;">Monitor SHA-256 chain verification, resolve escrow disputes, audit firewall incidents, and inspect system-wide provenance.</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bottom Action CTA -->
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:2rem;text-align:center;">
+        <h3 style="font-size:1.3rem;font-weight:800;letter-spacing:-0.03em;margin:0 0 0.5rem 0;">Ready to explore the ecosystem?</h3>
+        <p style="font-size:0.9rem;color:var(--muted);max-width:540px;margin:0 auto 1.5rem auto;line-height:1.6;">
+            Access current research initiatives, inspect live cryptographic ledger proofs, or test the platform with built-in personas.
+        </p>
+        <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
+            <a href="/projects" class="btn btn-primary" style="padding:0.65rem 1.5rem;">Launch Platform</a>
+            <a href="/" class="btn btn-secondary" style="padding:0.65rem 1.5rem;">Persona Switcher</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

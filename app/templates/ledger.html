@@ -17,12 +17,12 @@
             </p>
         </div>
         <div class="scorecard-formula">
-            <strong>Credit Formula</strong><br>
-            📝 Contribution submitted → <strong style="color:var(--verified)">20 cr</strong>&nbsp;&nbsp;
-            ✅ Reviewed → <strong style="color:var(--info)">30 cr</strong><br>
-            🏆 Milestone accepted → <strong style="color:var(--pending)">50 cr</strong>&nbsp;&nbsp;
-            🤖 AI action approved → <strong style="color:var(--verified)">15 cr</strong><br>
-            📜 Charter signed → 5 cr
+            <strong>Credit Schedule</strong><br>
+            Submission → <strong style="color:var(--verified)">20 cr</strong>&nbsp;&nbsp;
+            Review → <strong style="color:var(--info)">30 cr</strong><br>
+            Milestone accepted → <strong style="color:var(--pending)">50 cr</strong>&nbsp;&nbsp;
+            AI action approved → <strong style="color:var(--verified)">15 cr</strong><br>
+            Charter signed → 5 cr
         </div>
     </div>
 
@@ -73,11 +73,11 @@
 
     {# ── TAB BAR ── #}
     <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchTab('scorecard', this)">📊 Contribution Scorecard</button>
-        <button class="tab-btn" onclick="switchTab('chain', this)">⛓ Chain Integrity</button>
-        <button class="tab-btn" onclick="switchTab('entries', this)">📋 Entry Log</button>
+        <button class="tab-btn active" onclick="switchTab('scorecard', this)">Contribution Scorecard</button>
+        <button class="tab-btn" onclick="switchTab('chain', this)">Chain Integrity</button>
+        <button class="tab-btn" onclick="switchTab('entries', this)">Entry Log</button>
         {% if is_demo_mode %}
-        <button class="tab-btn" onclick="switchTab('demo', this)">⚠ Tamper Demo</button>
+        <button class="tab-btn" onclick="switchTab('demo', this)">Tamper Demo</button>
         {% endif %}
     </div>
 
@@ -131,7 +131,7 @@
         </table>
         {% else %}
         <div style="text-align:center;padding:3rem;color:var(--muted)">
-            <div style="font-size:2.5rem;margin-bottom:.75rem">📊</div>
+            <div style="font-size:0.9rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:.5rem">Scorecard Empty</div>
             No contribution credits recorded yet. Credits appear here after contributions are submitted and reviewed.
         </div>
         {% endif %}
@@ -159,7 +159,7 @@
                             <div class="block-top">
                                 <span class="block-id">#{{ block.id }}</span>
                                 {% if block.redacted %}
-                                    <span class="lock-icon" title="Redacted">🔒</span>
+                                    <span class="chip chip-red" style="font-size:0.6rem;padding:0.1rem 0.35rem;" title="Redacted">Restricted</span>
                                 {% else %}
                                     <span class="action-chip action-chip-{{ block.action_color }}">{{ block.action }}</span>
                                 {% endif %}
@@ -231,7 +231,7 @@
                                     <span class="entry-id-badge">#{{ entry.id }}</span>
                                     <span class="entry-timestamp">{{ entry.timestamp }}</span>
                                 </div>
-                                <div class="entry-redacted-chip">🔒 Redacted</div>
+                                <div class="entry-redacted-chip">Restricted</div>
                             </div>
                             <div class="entry-redacted-notice">Details hidden: you are not a member of this project</div>
                             <div class="entry-hashes-grid">

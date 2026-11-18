@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}{{ target_user.name }} — Researcher Profile — Provenance{% endblock %}
+{% block meta_description %}{{ target_user.name }}'s verified researcher scorecard on Provenance. Cryptographically verified credits, credentials, and contributions.{% endblock %}
+
+{% block content %}
+<div style="max-width:880px;margin:2rem auto;padding:0 1rem 4rem;">
+
+    {# ── Public Identity Header ── #}
+    <div style="display:flex;align-items:flex-start;gap:1.75rem;flex-wrap:wrap;margin-bottom:2.5rem;padding-bottom:2rem;border-bottom:1px solid var(--line);">
+        <div style="width:5rem;height:5rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.9rem;font-weight:900;font-family:var(--font-mono);flex-shrink:0;border:2px solid var(--line);
+            {% if target_user.role == 'sponsor' %}background:rgba(255,176,32,.12);color:var(--pending);border-color:var(--pending);{% elif target_user.role == 'expert' %}background:rgba(61,214,255,.12);color:var(--info);border-color:var(--info);{% elif target_user.role == 'admin' %}background:rgba(255,77,79,.12);color:var(--broken);border-color:var(--broken);{% else %}background:rgba(198,255,61,.12);color:var(--verified);border-color:var(--verified);{% endif %}">
+            {{ initials }}
+        </div>
+
+        <div style="flex:1;min-width:260px;">
+            <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.35rem;">
+                <h1 style="font-size:1.85rem;font-weight:900;letter-spacing:-0.03em;margin:0;">{{ target_user.name }}</h1>
+                <span class="role-chip role-{{ target_user.role }}">{{ target_user.role | upper }}</span>
+                <span class="chip chip-lime" style="font-size:0.7rem;">LEVEL {{ target_user.verification_level }} VERIFIED</span>
+            </div>
+
+            {% if profile.headline %}
+            <div style="font-size:1rem;color:var(--text);font-weight:600;margin-bottom:0.4rem;">
+                {{ profile.headline }}
+            </div>
+            {% endif %}
+
+            <div style="font-size:0.88rem;color:var(--muted);display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+                {% if profile.show_institution and (target_user.institution or profile.institution) %}
+                <span>{{ target_user.institution or profile.institution }}</span>
+                <span>&bull;</span>
+                {% endif %}
+                <span>On-chain ID: <code>#{{ target_user.id }}</code></span>
+            </div>
+
+            {% if target_user.bio or profile.bio %}
+            <p style="font-size:0.92rem;color:var(--muted);max-width:620px;line-height:1.6;margin:0.5rem 0 1rem;">
+                {{ target_user.bio or profile.bio }}
+            </p>
+            {% endif %}
+
+            {# External links #}
+            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.5rem;">
+                {% if profile.github_url %}
+                <a href="{{ profile.github_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="font-size:0.8rem;">
+                    ⌥ GitHub
+                </a>
+                {% endif %}
+                {% if profile.linkedin_url %}
+                <a href="{{ profile.linkedin_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="font-size:0.8rem;">
+                    in LinkedIn
+                </a>
+                {% endif %}
+                {% if profile.portfolio_url %}
+                <a href="{{ profile.portfolio_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="font-size:0.8rem;">
+                    Portfolio
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Credit Score Badge #}
+        <div style="text-align:right;flex-shrink:0;background:rgba(0,0,0,0.3);padding:1rem 1.25rem;border-radius:var(--radius-md);border:1px solid var(--line);">
+            <div style="font-size:2.6rem;font-weight:900;font-family:var(--font-mono);color:var(--verified);line-height:1;">
+                {{ cr_total }}
+            </div>
+            <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:0.25rem;">
+                Earned Credits
+            </div>
+            <div style="font-size:0.68rem;color:var(--muted);margin-top:0.2rem;">
+                Cryptographically audited
+            </div>
+        </div>
+    </div>
+
+    {# ── Skills ── #}
+    {% if skills %}
+    <div style="margin-bottom:2.5rem;">
+        <h3 style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.75rem;">Verified Skills &amp; Domain Expertise</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:0.45rem;">
+            {% for s in skills %}
+            <span class="skill-chip" style="font-size:0.82rem;padding:0.25rem 0.65rem;background:#1a2027;color:#c7d2de;border-radius:var(--radius-sm);border:1px solid var(--line);">
+                {{ s }}
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Two Columns: Credentials & Projects ── #}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;">
+
+        {# Left: Verified Credentials (respects show_credentials toggle) #}
+        <div>
+            <h3 style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:1rem;">
+                Cryptographic Credentials
+            </h3>
+            {% if profile.show_credentials and creds %}
+                <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                    {% for c in creds %}
+                    <div class="card" style="padding:1rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);">
+                        <div style="font-size:0.72rem;color:var(--verified);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:0.25rem;">
+                            Verified Credential
+                        </div>
+                        <div style="font-size:0.95rem;font-weight:700;color:var(--text);margin-bottom:0.25rem;">
+                            {{ c.milestone_title }}
+                        </div>
+                        <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">
+                            {{ c.project_title }}
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--muted);">
+                                {{ c.credential_hash[:16] }}…
+                            </span>
+                            <a href="/verify/{{ c.credential_hash }}" class="btn btn-secondary btn-sm" style="font-size:0.75rem;padding:0.2rem 0.55rem;color:var(--info);">
+                                View Certificate &amp; QR ↗
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% elif not profile.show_credentials %}
+                <div style="padding:1rem;background:rgba(255,255,255,0.02);border:1px dashed var(--line);border-radius:var(--radius-md);font-size:0.85rem;color:var(--muted);">
+                    Credentials hidden per researcher privacy settings.
+                </div>
+            {% else %}
+                <div style="padding:1rem;background:rgba(255,255,255,0.02);border:1px dashed var(--line);border-radius:var(--radius-md);font-size:0.85rem;color:var(--muted);">
+                    No public credentials issued yet.
+                </div>
+            {% endif %}
+        </div>
+
+        {# Right: Research Projects Participated In #}
+        <div>
+            <h3 style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:1rem;">
+                Collaborative Projects
+            </h3>
+            {% if projects %}
+                <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                    {% for p in projects %}
+                    <a href="/projects/{{ p.id }}" class="card" style="padding:1rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);text-decoration:none;display:block;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--verified)'" onmouseout="this.style.borderColor='var(--line)'">
+                        <div style="font-size:0.72rem;color:var(--info);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:0.25rem;">
+                            {{ p.engagement_model }} · {{ p.sensitivity_label }}
+                        </div>
+                        <div style="font-size:0.95rem;font-weight:700;color:var(--text);margin-bottom:0.25rem;">
+                            {{ p.title }}
+                        </div>
+                        <div style="font-size:0.75rem;color:var(--muted);">
+                            Active team member
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div style="padding:1rem;background:rgba(255,255,255,0.02);border:1px dashed var(--line);border-radius:var(--radius-md);font-size:0.85rem;color:var(--muted);">
+                    No public projects to show.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

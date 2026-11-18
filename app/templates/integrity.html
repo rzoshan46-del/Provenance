@@ -44,14 +44,14 @@
     <div class="integrity-tabs">
         {% if user and user.role in ('sponsor', 'admin') %}
         <button type="button" class="integrity-tab-btn {% if active_tab == 'trace' %}active{% endif %}" data-tab="trace" onclick="switchIntegrityTab('trace')">
-            🕵️ Leak Tracer
+            Leak Tracer
         </button>
         {% endif %}
         <button type="button" class="integrity-tab-btn {% if active_tab == 'authorship' %}active{% endif %}" data-tab="authorship" onclick="switchIntegrityTab('authorship')">
-            📜 Authorship Proof
+            Authorship Proof
         </button>
         <button type="button" class="integrity-tab-btn {% if active_tab == 'preview' %}active{% endif %}" data-tab="preview" onclick="switchIntegrityTab('preview')">
-            🔍 Plagiarism &amp; AI Preview
+            Plagiarism &amp; AI Preview
         </button>
     </div>
 

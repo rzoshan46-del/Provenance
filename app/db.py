@@ -219,6 +219,16 @@ def init_db() -> None:
                     issued_at TEXT NOT NULL,
                     credential_hash TEXT NOT NULL
                 );
+                -- 15. profiles
+                CREATE TABLE IF NOT EXISTS profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    role TEXT NOT NULL CHECK(role IN ('student','expert','sponsor','admin')),
+                    public_profile INTEGER NOT NULL DEFAULT 0,
+                    show_institution INTEGER NOT NULL DEFAULT 0,
+                    show_credentials INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
                 """
             )
     finally:

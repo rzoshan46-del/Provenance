@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#12161B"/>
+      <stop offset="100%" stop-color="#0B0D10"/>
+    </linearGradient>
+    <linearGradient id="limeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C6FF3D"/>
+      <stop offset="100%" stop-color="#3DD6FF"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  <!-- Dark Hexagon Outer Shield -->
+  <polygon points="32,4 58,18 58,46 32,60 6,46 6,18" fill="url(#bgGrad)" stroke="#232A33" stroke-width="2"/>
+  <!-- Glowing Inner Hexagon Ring -->
+  <polygon points="32,8 54,20 54,44 32,56 10,44 10,20" fill="none" stroke="url(#limeGrad)" stroke-width="2" filter="url(#glow)"/>
+  <!-- Stylized P Node (Provenance / Proof) -->
+  <path d="M24 44 V20 H34 C39 20 42 23 42 27 C42 31 39 34 34 34 H24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Verification Dot -->
+  <circle cx="34" cy="27" r="2.5" fill="#C6FF3D"/>
+</svg>

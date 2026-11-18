@@ -37,11 +37,8 @@
         <div class="demo-personas-login">
             {% for u in all_users %}
             <a href="/switch/{{ u.id }}" class="demo-persona-btn">
-                <div class="dpb-avatar">
-                    {% if u.role == 'sponsor' %}🏛
-                    {% elif u.role == 'expert' %}🔬
-                    {% elif u.role == 'admin' %}🛡
-                    {% else %}🎓{% endif %}
+                <div class="dpb-avatar" style="font-weight:700;font-size:0.85rem;color:var(--text);background:rgba(255,255,255,0.06);border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                    {{ u.name[:1] }}
                 </div>
                 <div class="dpb-info">
                     <div class="dpb-name">{{ u.name }}

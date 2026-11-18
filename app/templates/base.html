@@ -3,17 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Provenance{% endblock %}</title>
+    <title>{% block title %}Provenance (CritX) — Cryptographically Verified Collaborative R&amp;D{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Provenance (CritX) is an open-source, cryptographically verified collaborative research ecosystem connecting research sponsors, domain experts, and student researchers with zero-trust access control, append-only SHA-256 audit ledger, and AI firewall.{% endblock %}">
+    <meta name="theme-color" content="#0B0D10">
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="alternate icon" href="/static/favicon.svg">
+    <!-- Open Graph / Meta -->
+    <meta property="og:title" content="{% block og_title %}Provenance (CritX) — Collaborative Research Ecosystem{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Zero-trust access control, append-only SHA-256 audit ledger, and scoped AI workflows.{% endblock %}">
+    <meta property="og:type" content="website">
     <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
     <header class="topbar">
         <div class="topbar-brand">
-            <a href="/" class="brand-logo">⬡ Provenance</a>
+            <a href="/" class="brand-logo" aria-label="Provenance Home" title="Provenance Home">⬡ Provenance</a>
+            <span class="brand-tagline">Collaborative R&amp;D</span>
         </div>
 
-        <nav class="topbar-nav">
+        <nav class="topbar-nav" id="desktop-nav">
             <a href="/" class="nav-link">Home</a>
+            <a href="/overview" class="nav-link">Overview</a>
             <a href="/projects" class="nav-link">Projects</a>
             <a href="/integrity" class="nav-link">Integrity</a>
             <a href="/ledger" class="nav-link">Ledger</a>
@@ -35,7 +46,7 @@
                     ⬡ {{ user_credits(user.id) }} cr
                 </a>
                 {# Persona switcher #}
-                <select class="persona-select" onchange="if(this.value){ window.location.href='/switch/' + this.value; }">
+                <select class="persona-select" aria-label="Switch User Persona" onchange="if(this.value){ window.location.href='/switch/' + this.value; }">
                     {% for u in all_users %}
                         <option value="{{ u.id }}" {% if user.id == u.id %}selected{% endif %}>
                             {{ u.name }}
@@ -43,13 +54,72 @@
                     {% endfor %}
                 </select>
                 <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
-                <a href="/me" class="nav-link" style="font-size:.8rem">Profile</a>
-                <a href="/switch-clear" class="nav-link" style="font-size:.8rem;color:var(--muted)" title="Sign out">Sign out</a>
+                <a href="/me" class="nav-link nav-link-user" style="font-size:.8rem">Profile</a>
+                <a href="/switch-clear" class="nav-link nav-link-signout" style="font-size:.8rem;color:var(--muted)" title="Sign out">Sign out</a>
             {% else %}
                 <a href="/login" class="btn-signin">Sign In →</a>
             {% endif %}
+
+            <!-- Mobile Hamburger Toggle -->
+            <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-label="Open mobile navigation menu" aria-expanded="false" aria-controls="mobile-nav">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
         </div>
     </header>
+
+    <!-- Mobile Drawer Navigation -->
+    <div class="mobile-nav-backdrop" id="mobile-nav-backdrop"></div>
+    <aside class="mobile-nav" id="mobile-nav" aria-label="Mobile Navigation" aria-hidden="true">
+        <div class="mobile-nav-header">
+            <a href="/" class="brand-logo" aria-label="Provenance Home">⬡ Provenance</a>
+            <button class="mobile-nav-close" id="mobile-nav-close" type="button" aria-label="Close navigation menu">&times;</button>
+        </div>
+        <nav class="mobile-nav-links">
+            <a href="/" class="mobile-nav-link">Home</a>
+            <a href="/overview" class="mobile-nav-link">Project Overview</a>
+            <a href="/projects" class="mobile-nav-link">Projects</a>
+            <a href="/integrity" class="mobile-nav-link">Integrity Center</a>
+            <a href="/ledger" class="mobile-nav-link">Audit Ledger</a>
+            <a href="/credentials" class="mobile-nav-link">Credentials</a>
+            {% if user and user.role == 'sponsor' %}<a href="/review" class="mobile-nav-link">My submissions</a>{% endif %}
+            {% if user and user.role == 'admin' %}
+            <a href="/review" class="mobile-nav-link">Project Review</a>
+            <a href="/admin" class="mobile-nav-link">Admin Console</a>
+            {% endif %}
+            {% if demo_mode() %}
+            <a href="/story" class="mobile-nav-link" style="color:var(--pending)">Story Mode Walkthrough</a>
+            {% endif %}
+        </nav>
+        <div class="mobile-nav-footer">
+            {% if user %}
+                <div class="mobile-user-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                        <span style="font-weight:700;font-size:0.95rem;">{{ user.name }}</span>
+                        <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:0.85rem;font-size:0.85rem;">
+                        <a href="/me" class="credit-badge">⬡ {{ user_credits(user.id) }} cr</a>
+                        <a href="/me" style="color:var(--info);">My Profile</a>
+                        <a href="/switch-clear" style="color:var(--muted);margin-left:auto;">Sign out</a>
+                    </div>
+                    <div>
+                        <label style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:0.35rem;">Switch Persona:</label>
+                        <select class="persona-select" style="width:100%;background:#0B0D10;border:1px solid var(--line);padding:0.45rem;border-radius:var(--radius-sm);color:var(--text);" onchange="if(this.value){ window.location.href='/switch/' + this.value; }">
+                            {% for u in all_users %}
+                                <option value="{{ u.id }}" {% if user.id == u.id %}selected{% endif %}>
+                                    {{ u.name }} ({{ u.role }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            {% else %}
+                <a href="/login" class="btn-signin" style="display:block;text-align:center;padding:0.7rem;">Sign In →</a>
+            {% endif %}
+        </div>
+    </aside>
 
     {% if watermark_overlay %}
     <div class="watermark-overlay" aria-hidden="true">
@@ -60,18 +130,128 @@
     {% endif %}
 
     <main class="container">
+        {# Flash / Alert banners #}
+        {% if request.query_params.get('msg') or request.query_params.get('success') %}
+        <div class="alert alert-success" role="alert">
+            <span class="alert-icon">✓</span>
+            <div class="alert-content">
+                {{ request.query_params.get('msg') or request.query_params.get('success') }}
+            </div>
+            <button type="button" class="alert-close" onclick="this.closest('.alert').remove()" aria-label="Dismiss alert">&times;</button>
+        </div>
+        {% endif %}
+        {% if request.query_params.get('error') %}
+        <div class="alert alert-error" role="alert">
+            <span class="alert-icon">⚠</span>
+            <div class="alert-content">
+                {{ request.query_params.get('error') }}
+            </div>
+            <button type="button" class="alert-close" onclick="this.closest('.alert').remove()" aria-label="Dismiss alert">&times;</button>
+        </div>
+        {% endif %}
+        {% if request.query_params.get('submitted') %}
+        <div class="alert alert-success" role="alert">
+            <span class="alert-icon">✓</span>
+            <div class="alert-content">
+                Project submitted successfully and queued for review.
+            </div>
+            <button type="button" class="alert-close" onclick="this.closest('.alert').remove()" aria-label="Dismiss alert">&times;</button>
+        </div>
+        {% endif %}
+        {% block alerts %}{% endblock %}
+
         {% block content %}{% endblock %}
     </main>
 
     <footer class="footer">
-        <div class="footer-content">
-            <span>⬡ Provenance</span>
-            <a href="/ledger" style="color:var(--muted);text-decoration:none;font-size:.78rem">Ledger ⛓</a>
-            <span class="mock-badge">MOCKED: synthetic personas &amp; simulated auth</span>
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-brand">
+                    <a href="/" class="brand-logo" style="font-size:1.15rem;" aria-label="Provenance Home">⬡ Provenance</a>
+                    <p class="footer-tagline">Cryptographically verified collaborative research ecosystem connecting sponsors, domain experts, and student researchers.</p>
+                    <span class="mock-badge">MOCKED: synthetic personas &amp; simulated auth</span>
+                </div>
+                <div class="footer-nav-groups">
+                    <div class="footer-col">
+                        <h4>Platform</h4>
+                        <a href="/">Home</a>
+                        <a href="/overview">Project Overview</a>
+                        <a href="/projects">Projects Directory</a>
+                        <a href="/integrity">Integrity Center</a>
+                        <a href="/credentials">Credentials &amp; Badges</a>
+                        {% if demo_mode() %}<a href="/story">Story Walkthrough</a>{% endif %}
+                    </div>
+                    <div class="footer-col">
+                        <h4>Governance</h4>
+                        <a href="/ledger">Audit Ledger</a>
+                        {% if user and user.role == 'admin' %}<a href="/admin">Admin Console</a>{% endif %}
+                        {% if user and (user.role == 'admin' or user.role == 'sponsor') %}<a href="/review">Reviews</a>{% endif %}
+                        <a href="/api/ledger/verify">Verify Hash Chain</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <div>&copy; 2026 Provenance (CritX). All rights reserved.</div>
+                <div class="footer-subtext">Zero-trust access &bull; Append-only SHA-256 audit ledger &bull; Exact rupee split engine</div>
+            </div>
         </div>
     </footer>
 
     {% block scripts %}{% endblock %}
     <script src="/static/chatbot.js"></script>
+
+    <!-- Mobile Menu Controller Script -->
+    <script id="mobile-nav-controller">
+    (function() {
+        const toggle = document.getElementById('mobile-menu-toggle');
+        const drawer = document.getElementById('mobile-nav');
+        const backdrop = document.getElementById('mobile-nav-backdrop');
+        const closeBtn = document.getElementById('mobile-nav-close');
+
+        function openMenu() {
+            if (!drawer || !backdrop) return;
+            drawer.classList.add('is-open');
+            backdrop.classList.add('is-visible');
+            drawer.setAttribute('aria-hidden', 'false');
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMenu() {
+            if (!drawer || !backdrop) return;
+            drawer.classList.remove('is-open');
+            backdrop.classList.remove('is-visible');
+            drawer.setAttribute('aria-hidden', 'true');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        }
+
+        if (toggle) toggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (drawer && drawer.classList.contains('is-open')) {
+                closeMenu();
+            } else {
+                openMenu();
+            }
+        });
+
+        if (closeBtn) closeBtn.addEventListener('click', closeMenu);
+        if (backdrop) backdrop.addEventListener('click', closeMenu);
+
+        // Close on ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && drawer && drawer.classList.contains('is-open')) {
+                closeMenu();
+            }
+        });
+
+        // Close when clicking internal links
+        if (drawer) {
+            drawer.querySelectorAll('a').forEach(function(link) {
+                link.addEventListener('click', closeMenu);
+            });
+        }
+    })();
+    </script>
 </body>
 </html>

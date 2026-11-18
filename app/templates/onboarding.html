@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Complete Onboarding — Provenance{% endblock %}
+
+{% block content %}
+<div style="max-width:620px;margin:3rem auto;padding:0 1rem;">
+    <div class="card" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:2.25rem;box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+        <div style="text-align:center;margin-bottom:2rem;">
+            <div style="width:3.5rem;height:3.5rem;border-radius:50%;background:rgba(198,255,61,0.12);border:2px solid var(--verified);display:inline-flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--verified);margin-bottom:1rem;">
+                ⬡
+            </div>
+            <h1 style="font-size:1.85rem;font-weight:900;letter-spacing:-0.03em;margin-bottom:0.4rem;">Welcome to Provenance</h1>
+            <p style="color:var(--muted);font-size:0.92rem;margin:0;">
+                Signed in as <strong>{{ user.name }}</strong> ({{ user.email }}).<br>
+                Please choose your platform role to configure your research workspace.
+            </p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error" style="margin-bottom:1.5rem;">
+            <span class="alert-icon">⚠</span>
+            <div class="alert-content">{{ error }}</div>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/onboarding" style="display:flex;flex-direction:column;gap:1.5rem;">
+            <div>
+                <label style="font-size:0.85rem;font-weight:700;color:var(--text);display:block;margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.04em;">
+                    Select Your Role *
+                </label>
+                <div style="display:grid;grid-template-columns:1fr;gap:0.75rem;">
+                    <label style="display:flex;align-items:flex-start;gap:1rem;padding:1rem;background:rgba(0,0,0,0.25);border:1px solid var(--line);border-radius:var(--radius-md);cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--verified)'" onmouseout="this.style.borderColor='var(--line)'">
+                        <input type="radio" name="role" value="student" required checked style="margin-top:0.3rem;">
+                        <div>
+                            <div style="font-weight:700;color:var(--verified);font-size:1rem;display:flex;align-items:center;gap:0.4rem;">
+                                Student Researcher
+                                <span class="chip chip-lime" style="font-size:0.65rem;">Immediate Access</span>
+                            </div>
+                            <p style="font-size:0.82rem;color:var(--muted);margin:0.25rem 0 0;line-height:1.45;">
+                                Join funded or knowledge-sharing research projects, submit deliverables, earn verified on-chain credit points, and get cryptographic certificates.
+                            </p>
+                        </div>
+                    </label>
+
+                    <label style="display:flex;align-items:flex-start;gap:1rem;padding:1rem;background:rgba(0,0,0,0.25);border:1px solid var(--line);border-radius:var(--radius-md);cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--info)'" onmouseout="this.style.borderColor='var(--line)'">
+                        <input type="radio" name="role" value="expert" style="margin-top:0.3rem;">
+                        <div>
+                            <div style="font-weight:700;color:var(--info);font-size:1rem;">Domain Expert &amp; Advisor</div>
+                            <p style="font-size:0.82rem;color:var(--muted);margin:0.25rem 0 0;line-height:1.45;">
+                                Advise student teams, review technical milestones, conduct plagiarism/integrity checks, and earn milestone review stipends.
+                            </p>
+                        </div>
+                    </label>
+
+                    <label style="display:flex;align-items:flex-start;gap:1rem;padding:1rem;background:rgba(0,0,0,0.25);border:1px solid var(--line);border-radius:var(--radius-md);cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--pending)'" onmouseout="this.style.borderColor='var(--line)'">
+                        <input type="radio" name="role" value="sponsor" style="margin-top:0.3rem;">
+                        <div>
+                            <div style="font-weight:700;color:var(--pending);font-size:1rem;">Research Sponsor &amp; Organization</div>
+                            <p style="font-size:0.82rem;color:var(--muted);margin:0.25rem 0 0;line-height:1.45;">
+                                Post high-impact research challenges, fund escrow milestones, access confidential briefs, and receive verified deliverables.
+                            </p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <label for="institution" style="font-size:0.85rem;font-weight:700;color:var(--text);display:block;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em;">
+                    Affiliated Institution or Organization (Optional)
+                </label>
+                <input type="text" id="institution" name="institution" placeholder="e.g. Stanford University, MedVision Labs, Independent" value="{{ user.institution or '' }}" style="width:100%;padding:0.75rem 1rem;background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);font-size:0.95rem;">
+            </div>
+
+            <div style="padding:0.75rem 1rem;background:rgba(255,176,32,0.06);border-left:3px solid var(--pending);border-radius:4px;font-size:0.8rem;color:var(--muted);">
+                <strong>Zero-Trust Policy:</strong> The Administrator role cannot be self-selected and requires offline platform governance verification.
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="background:var(--verified);color:#0B0D10;font-weight:700;font-size:1rem;padding:0.8rem;width:100%;border-radius:var(--radius-sm);cursor:pointer;">
+                Confirm Role &amp; Enter Platform →
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}404 Page Not Found — Provenance{% endblock %}
+{% block meta_description %}The requested resource could not be found on Provenance.{% endblock %}
+
+{% block content %}
+<div class="error-container" style="max-width:680px;margin:3rem auto;padding:0 1rem;">
+    <div class="card error-card" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:2rem;box-shadow:0 8px 30px rgba(0,0,0,0.4);">
+        <div class="error-header" style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem;">
+            <span class="chip chip-amber" style="font-weight:700;">HTTP 404 NOT FOUND</span>
+        </div>
+
+        <h1 style="font-size:2rem;font-weight:900;letter-spacing:-0.03em;margin-bottom:0.75rem;color:var(--text);">
+            Page Not Found
+        </h1>
+
+        <div class="error-body" style="color:var(--muted);font-size:0.95rem;line-height:1.6;margin-bottom:1.75rem;">
+            <p style="margin-bottom:1rem;">
+                The resource or endpoint you requested does not exist or may have been relocated.
+            </p>
+            {% if detail and detail != "Not Found" %}
+            <div class="error-detail-box" style="background:#0B0D10;border:1px solid var(--line);border-radius:var(--radius-sm);padding:0.6rem 0.9rem;font-family:var(--font-mono);font-size:0.85rem;color:var(--broken);margin-bottom:1rem;">
+                <code>{{ detail }}</code>
+            </div>
+            {% endif %}
+            <p style="font-size:0.85rem;color:var(--muted);">
+                All blockchain ledger records, project charters, and cryptographic proofs remain completely intact and unaltered.
+            </p>
+        </div>
+
+        <div class="error-actions" style="display:flex;gap:0.75rem;flex-wrap:wrap;padding-top:1.25rem;border-top:1px solid var(--line);">
+            <a href="/" class="btn btn-primary" style="background:var(--verified);color:#0B0D10;font-weight:700;padding:0.6rem 1.25rem;border-radius:var(--radius-sm);">
+                ← Return to Home
+            </a>
+            <a href="/projects" class="btn btn-secondary" style="border:1px solid var(--line);color:var(--text);padding:0.6rem 1.25rem;border-radius:var(--radius-sm);">
+                Browse Projects
+            </a>
+            <a href="/ledger" class="btn btn-secondary" style="border:1px solid var(--line);color:var(--muted);padding:0.6rem 1.25rem;border-radius:var(--radius-sm);">
+                Inspect Ledger
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
