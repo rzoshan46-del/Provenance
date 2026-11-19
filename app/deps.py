@@ -38,7 +38,11 @@ def require_role(*roles: str) -> Callable:
     def role_checker(
         user: Optional[sqlite3.Row] = Depends(current_user),
     ) -> sqlite3.Row:
-        if not user or user["role"] not in roles:
+        if not user:
+            raise HTTPException(
+                status_code=401, detail="Not authenticated"
+            )
+        if user["role"] not in roles:
             raise HTTPException(
                 status_code=403, detail="Forbidden: Insufficient privileges"
             )
