@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+
+{% block title %}Account Settings — CritX{% endblock %}
+
+{% block content %}
+<div style="max-width:960px;margin:2rem auto;padding:0 1rem 4rem;">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--line);">
+        <div>
+            <h1 style="font-size:1.85rem;font-weight:900;margin:0;">Account Settings</h1>
+            <p style="color:var(--muted);font-size:0.9rem;margin-top:0.25rem;">Manage your researcher identity, profile links, privacy flags, and security.</p>
+        </div>
+        <div>
+            <a href="/u/{{ profile.handle or user.id }}" class="btn btn-secondary btn-sm">View Public Profile ↗</a>
+        </div>
+    </div>
+
+    {# ── Navigation Tabs ── #}
+    <div style="display:flex;gap:0.5rem;border-bottom:1px solid var(--line);margin-bottom:2rem;flex-wrap:wrap;">
+        <a href="/settings/profile" class="btn btn-sm {% if tab == 'profile' %}btn-primary{% else %}btn-secondary{% endif %}" style="text-decoration:none;">👤 Profile</a>
+        <a href="/settings/account" class="btn btn-sm {% if tab == 'account' %}btn-primary{% else %}btn-secondary{% endif %}" style="text-decoration:none;">⚙️ Account</a>
+        <a href="/settings/privacy" class="btn btn-sm {% if tab == 'privacy' %}btn-primary{% else %}btn-secondary{% endif %}" style="text-decoration:none;">🔒 Privacy</a>
+        <a href="/settings/security" class="btn btn-sm {% if tab == 'security' %}btn-primary{% else %}btn-secondary{% endif %}" style="text-decoration:none;">🛡️ Security</a>
+        <a href="/settings/notifications" class="btn btn-sm {% if tab == 'notifications' %}btn-primary{% else %}btn-secondary{% endif %}" style="text-decoration:none;">🔔 Notifications</a>
+        <a href="/settings/data" class="btn btn-sm {% if tab == 'data' %}btn-primary{% else %}btn-secondary{% endif %}" style="text-decoration:none;">📦 Data &amp; Export</a>
+    </div>
+
+    {# ── TAB 1: PROFILE ── #}
+    {% if tab == 'profile' %}
+    <div>
+        {# Profile Completeness Meter #}
+        <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:2rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                <span style="font-size:0.85rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">Profile Completeness</span>
+                <span style="font-size:0.9rem;font-weight:bold;color:var(--verified);">{{ completeness }}%</span>
+            </div>
+            <div style="height:8px;background:rgba(0,0,0,0.4);border-radius:4px;overflow:hidden;">
+                <div style="width:{{ completeness }}%;height:100%;background:var(--verified);transition:width 0.3s ease;"></div>
+            </div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem;">
+                Complete your handle, bio, location, and verified links to maximize team formation discovery.
+            </div>
+        </div>
+
+        <form action="/settings/profile" method="POST" style="display:flex;flex-direction:column;gap:1.5rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            {# Avatar Note #}
+            <div style="display:flex;align-items:center;gap:1rem;background:rgba(255,255,255,0.02);padding:1rem;border-radius:var(--radius-md);border:1px solid var(--line);">
+                <div style="width:48px;height:48px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:1.2rem;">
+                    {{ initials }}
+                </div>
+                <div style="font-size:0.82rem;color:var(--muted);">
+                    <strong style="color:var(--text);">Cryptographic Avatar:</strong> Derived deterministically from verified Google login or generated initials SVG. Arbitrary file uploads are strictly disallowed per platform safety rules.
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+                <div>
+                    <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">Display Name</label>
+                    <input type="text" name="display_name" value="{{ profile.display_name or user.name }}" class="input" style="width:100%;padding:0.6rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);" placeholder="Your public name">
+                </div>
+                <div>
+                    <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">
+                        Handle <span style="font-size:0.75rem;color:var(--muted);">(3-24 chars, a-z0-9_, 14-day cooldown)</span>
+                    </label>
+                    <div style="display:flex;align-items:center;">
+                        <span style="padding:0.6rem;background:rgba(0,0,0,0.3);border:1px solid var(--line);border-right:none;border-radius:var(--radius-sm) 0 0 var(--radius-sm);color:var(--muted);">@</span>
+                        <input type="text" name="handle" value="{{ profile.handle or '' }}" class="input" style="width:100%;padding:0.6rem;background:var(--panel);border:1px solid var(--line);border-radius:0 var(--radius-sm) var(--radius-sm) 0;color:var(--text);" placeholder="handle">
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+                <div>
+                    <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">Headline</label>
+                    <input type="text" name="headline" value="{{ profile.headline or '' }}" class="input" style="width:100%;padding:0.6rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);" placeholder="e.g. Edge ML &amp; Quantization Researcher">
+                </div>
+                <div>
+                    <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">Location</label>
+                    <input type="text" name="location" value="{{ profile.location or '' }}" class="input" style="width:100%;padding:0.6rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);" placeholder="e.g. Bengaluru, India">
+                </div>
+            </div>
+
+            <div>
+                <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">Bio</label>
+                <textarea name="bio" rows="3" class="input" style="width:100%;padding:0.6rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);" placeholder="Brief background...">{{ profile.bio or user.bio or '' }}</textarea>
+            </div>
+
+            <div>
+                <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">Skills <span style="font-size:0.75rem;color:var(--muted);">(comma-separated)</span></label>
+                <input type="text" name="skills" value="{{ skills_str }}" class="input" style="width:100%;padding:0.6rem;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);color:var(--text);" placeholder="python, pytorch, cryptography">
+            </div>
+
+            {# Verified Social Links (HTTPS only, per-field allowlist) #}
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;">
+                <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:1rem;color:var(--text);">External Links (HTTPS Only, Verified Domains)</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">GitHub URL</label>
+                        <input type="url" name="github_url" value="{{ profile.github_url or '' }}" placeholder="https://github.com/..." class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">LinkedIn URL</label>
+                        <input type="url" name="linkedin_url" value="{{ profile.linkedin_url or '' }}" placeholder="https://linkedin.com/in/..." class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">X (Twitter) URL</label>
+                        <input type="url" name="x_url" value="{{ profile.x_url or '' }}" placeholder="https://x.com/..." class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">Instagram URL</label>
+                        <input type="url" name="instagram_url" value="{{ profile.instagram_url or '' }}" placeholder="https://instagram.com/..." class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">YouTube URL</label>
+                        <input type="url" name="youtube_url" value="{{ profile.youtube_url or '' }}" placeholder="https://youtube.com/..." class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">Google Scholar URL</label>
+                        <input type="url" name="scholar_url" value="{{ profile.scholar_url or '' }}" placeholder="https://scholar.google.com/..." class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">ORCID URL</label>
+                        <input type="url" name="orcid_url" value="{{ profile.orcid_url or '' }}" placeholder="https://orcid.org/..." class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">Portfolio URL (Public domain, no localhost/IPs)</label>
+                        <input type="url" name="portfolio_url" value="{{ profile.portfolio_url or '' }}" placeholder="https://example.com" class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                    </div>
+                </div>
+            </div>
+
+            {# Pinned Contributions #}
+            {% if user_conts %}
+            <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;">
+                <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:0.5rem;color:var(--text);">Pinned Contributions (Max 3)</h3>
+                <p style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem;">Feature your highest-impact peer-reviewed contributions on your public scorecard.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">Slot 1</label>
+                        <select name="pinned_1" class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.3);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                            <option value="">-- None --</option>
+                            {% for c in user_conts %}
+                            <option value="{{ c.id }}" {% if pinned_ids|length > 0 and pinned_ids[0] == c.id %}selected{% endif %}>{{ c.artefact_title }} (×{{ c.impact_weight }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">Slot 2</label>
+                        <select name="pinned_2" class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.3);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                            <option value="">-- None --</option>
+                            {% for c in user_conts %}
+                            <option value="{{ c.id }}" {% if pinned_ids|length > 1 and pinned_ids[1] == c.id %}selected{% endif %}>{{ c.artefact_title }} (×{{ c.impact_weight }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:var(--muted);">Slot 3</label>
+                        <select name="pinned_3" class="input" style="width:100%;padding:0.5rem;background:rgba(0,0,0,0.3);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+                            <option value="">-- None --</option>
+                            {% for c in user_conts %}
+                            <option value="{{ c.id }}" {% if pinned_ids|length > 2 and pinned_ids[2] == c.id %}selected{% endif %}>{{ c.artefact_title }} (×{{ c.impact_weight }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Hidden privacy pass-through #}
+            <input type="hidden" name="is_public" value="{% if profile.is_public %}1{% endif %}">
+            <input type="hidden" name="show_institution" value="{% if profile.show_institution %}1{% endif %}">
+            <input type="hidden" name="show_credentials" value="{% if profile.show_credentials %}1{% endif %}">
+
+            <div>
+                <button type="submit" class="btn btn-primary">Save Profile Changes</button>
+            </div>
+        </form>
+    </div>
+
+    {# ── TAB 2: ACCOUNT ── #}
+    {% elif tab == 'account' %}
+    <div style="display:flex;flex-direction:column;gap:2rem;">
+        <form action="/settings/account" method="POST" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.5rem;display:flex;flex-direction:column;gap:1.25rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <h3 style="font-size:1.1rem;font-weight:700;margin:0;">Account Information</h3>
+
+            <div>
+                <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">Full Legal Name</label>
+                <input type="text" name="name" value="{{ user.name }}" class="input" style="width:100%;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);" required>
+            </div>
+
+            <div>
+                <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">Institutional Affiliation</label>
+                <input type="text" name="institution" value="{{ user.institution or '' }}" class="input" style="width:100%;padding:0.6rem;background:rgba(0,0,0,0.2);border:1px solid var(--line);border-radius:4px;color:var(--text);">
+            </div>
+
+            <div>
+                <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">Email Address <span style="font-size:0.75rem;color:var(--muted);">(Bound to cryptographic identity)</span></label>
+                <input type="text" value="{{ user.email }}" class="input" style="width:100%;padding:0.6rem;background:rgba(0,0,0,0.5);border:1px solid var(--line);border-radius:4px;color:var(--muted);" readonly disabled>
+            </div>
+
+            <div>
+                <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:0.4rem;">Role</label>
+                <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
+            </div>
+
+            <div>
+                <button type="submit" class="btn btn-primary">Update Account</button>
+            </div>
+        </form>
+
+        {# Danger Zone: Account Deletion #}
+        <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-md);padding:1.5rem;">
+            <h3 style="font-size:1.1rem;font-weight:700;color:#ef4444;margin:0 0 0.5rem;">Danger Zone: Delete Account</h3>
+            <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;">
+                Account deletion anonymizes your profile, resets all personal identifiers, and withdraws you from future projects. Past ledger entries remain cryptographically intact. Deletion is strictly blocked if you hold unsettled escrow obligations.
+            </p>
+            <form action="/settings/account/delete" method="POST" onsubmit="return confirm('Are you absolutely sure you want to delete your account? This action cannot be undone.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-size:0.8rem;color:var(--text);margin-bottom:0.3rem;">Type your handle <code>{{ profile.handle }}</code> to confirm:</label>
+                    <input type="text" name="confirm_handle" required placeholder="{{ profile.handle }}" class="input" style="padding:0.5rem;background:rgba(0,0,0,0.3);border:1px solid rgba(239,68,68,0.5);border-radius:4px;color:#fff;">
+                </div>
+                <button type="submit" class="btn btn-sm" style="background:#ef4444;color:#fff;">Permanently Anonymize &amp; Delete Account</button>
+            </form>
+        </div>
+    </div>
+
+    {# ── TAB 3: PRIVACY ── #}
+    {% elif tab == 'privacy' %}
+    <div>
+        <form action="/settings/privacy" method="POST" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.5rem;display:flex;flex-direction:column;gap:1.5rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <h3 style="font-size:1.1rem;font-weight:700;margin:0;">Privacy &amp; Discovery Controls</h3>
+
+            <div style="display:flex;align-items:flex-start;gap:1rem;">
+                <input type="checkbox" id="is_public" name="is_public" value="1" {% if profile.is_public %}checked{% endif %} style="margin-top:0.25rem;">
+                <div>
+                    <label for="is_public" style="font-weight:600;font-size:0.95rem;cursor:pointer;">Public Researcher Profile</label>
+                    <p style="font-size:0.82rem;color:var(--muted);margin-top:0.2rem;">When disabled, external visitors and other researchers see a 404 private page.</p>
+                </div>
+            </div>
+
+            <div style="display:flex;align-items:flex-start;gap:1rem;">
+                <input type="checkbox" id="show_institution" name="show_institution" value="1" {% if profile.show_institution %}checked{% endif %} style="margin-top:0.25rem;">
+                <div>
+                    <label for="show_institution" style="font-weight:600;font-size:0.95rem;cursor:pointer;">Show Institutional Affiliation</label>
+                    <p style="font-size:0.82rem;color:var(--muted);margin-top:0.2rem;">Display your verified university, hospital, or corporate affiliation on your scorecard.</p>
+                </div>
+            </div>
+
+            <div style="display:flex;align-items:flex-start;gap:1rem;">
+                <input type="checkbox" id="show_credentials" name="show_credentials" value="1" {% if profile.show_credentials %}checked{% endif %} style="margin-top:0.25rem;">
+                <div>
+                    <label for="show_credentials" style="font-weight:600;font-size:0.95rem;cursor:pointer;">Show Cryptographic Milestone Credentials</label>
+                    <p style="font-size:0.82rem;color:var(--muted);margin-top:0.2rem;">Display verified milestone achievement badges and QR certificate verification links.</p>
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" class="btn btn-primary">Save Privacy Toggles</button>
+            </div>
+        </form>
+    </div>
+
+    {# ── TAB 4: SECURITY ── #}
+    {% elif tab == 'security' %}
+    <div style="display:flex;flex-direction:column;gap:1.5rem;">
+        <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.5rem;">
+            <h3 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Active Sessions &amp; Device Invalidation</h3>
+            <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem;">
+                Current Session Epoch: <code>#{{ user.session_epoch or 0 }}</code>. If you suspect any device compromise, bumping the session epoch invalidates all active sessions across all devices immediately.
+            </p>
+            <form action="/settings/security/signout-all" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-secondary" style="color:#ef4444;border-color:rgba(239,68,68,0.4);">
+                    🛑 Invalidate All Sessions &amp; Sign Out Everywhere
+                </button>
+            </form>
+        </div>
+
+        {# Account Events Audit Trail #}
+        {% if events %}
+        <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.5rem;">
+            <h3 style="font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:1rem;">Security Audit Trail (Last 20 Events)</h3>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                {% for ev in events %}
+                <div style="display:flex;justify-content:space-between;font-size:0.8rem;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <span style="font-family:var(--font-mono);color:var(--verified);">{{ ev.event }}</span>
+                    <span style="color:var(--muted);">{{ ev.created_at[:19] }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# ── TAB 5: NOTIFICATIONS ── #}
+    {% elif tab == 'notifications' %}
+    <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h3 style="font-size:1.1rem;font-weight:700;margin:0;">Platform Notifications</h3>
+            {% if notifications %}
+            <form action="/settings/notifications/read" method="POST" onsubmit="event.preventDefault();fetch('/settings/notifications/read',{method:'POST',headers:{'X-CSRF-Token':'{{ csrf_token }}'}}).then(()=>window.location.reload());">
+                <button type="submit" class="btn btn-secondary btn-sm">Mark All as Read</button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if notifications %}
+        <div style="display:flex;flex-direction:column;gap:0.75rem;">
+            {% for n in notifications %}
+            <div class="card" style="padding:1rem;background:var(--panel);border:1px solid {% if n.read %}var(--line){% else %}var(--verified){% endif %};border-radius:var(--radius-md);">
+                <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;">
+                    <span style="font-size:0.75rem;color:var(--muted);">{{ n.created_at[:19] }}</span>
+                    {% if not n.read %}
+                    <span class="chip chip-lime" style="font-size:0.65rem;">NEW</span>
+                    {% endif %}
+                </div>
+                <div style="font-size:0.9rem;color:var(--text);">
+                    {{ n.payload_json }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:2rem;text-align:center;background:rgba(255,255,255,0.02);border:1px dashed var(--line);border-radius:var(--radius-md);color:var(--muted);font-size:0.9rem;">
+            No notifications yet. You're completely up to date!
+        </div>
+        {% endif %}
+    </div>
+
+    {# ── TAB 6: DATA & EXPORT ── #}
+    {% elif tab == 'data' %}
+    <div style="display:flex;flex-direction:column;gap:1.5rem;">
+        <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.5rem;">
+            <h3 style="font-size:1.1rem;font-weight:700;margin:0 0 0.5rem;">Data Sovereignty &amp; Full Export</h3>
+            <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.5;">
+                In accordance with Zero-Trust and GDPR/Data Protection standards, you may export your entire cryptographic profile, milestones, contribution records, and reviews. The export contains strictly your own authenticated data.
+            </p>
+            <a href="/settings/data/export" class="btn btn-primary" download>
+                📥 Download Full Personal Data Archive (.JSON)
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

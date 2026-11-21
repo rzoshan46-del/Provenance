@@ -4043,6 +4043,105 @@ def run_checks() -> bool:
         f"story_200={story_page_200}, steps={has_all_steps}, twists={has_twists_section}, sw_safe={sw_safe_ok}, sw_unsafe={sw_unsafe_ok}",
     )
 
+    # ── Checks 156–162 (Profile & Account system GATE) ──
+    import app.profiles as profiles_gate
+    u_kiran = query_one("SELECT id FROM users WHERE name LIKE 'Kiran%'")
+    kiran_id = u_kiran["id"] if u_kiran else 3
+    u_tara = query_one("SELECT id FROM users WHERE name LIKE 'Tara%'")
+    tara_id = u_tara["id"] if u_tara else 9
+
+    # (156) javascript: and http: links rejected
+    js_rejected = False
+    try:
+        profiles_gate.validate_url("github_url", "javascript:alert(1)")
+    except ValueError:
+        js_rejected = True
+    http_rejected = False
+    try:
+        profiles_gate.validate_url("github_url", "http://github.com/ananya")
+    except ValueError:
+        http_rejected = True
+    ok_156 = js_rejected and http_rejected
+    check(156, "javascript: and http: links rejected", ok_156, f"js={js_rejected}, http={http_rejected}")
+
+    # (157) duplicate and reserved handles rejected
+    res_reserved = False
+    try:
+        profiles_gate.validate_handle("admin")
+    except ValueError:
+        res_reserved = True
+    now_iso = datetime.now(timezone.utc).isoformat()
+    profiles_gate.update_handle(arvind_id, "arvind_gate", auth_at=now_iso)
+    dup_rejected = False
+    try:
+        profiles_gate.validate_handle("arvind_gate", current_user_id=kiran_id)
+    except ValueError:
+        dup_rejected = True
+    ok_157 = res_reserved and dup_rejected
+    check(157, "duplicate and reserved handles rejected", ok_157, f"reserved={res_reserved}, duplicate={dup_rejected}")
+
+    # (158) 14-day cooldown enforced
+    cooldown_ok = False
+    try:
+        profiles_gate.update_handle(arvind_id, "arvind_new", auth_at=now_iso)
+    except ValueError as ve:
+        if "14 days" in str(ve):
+            cooldown_ok = True
+    check(158, "14-day cooldown enforced", cooldown_ok, f"cooldown={cooldown_ok}")
+
+    # (159) private profile is 404 for others
+    prof_kiran = profiles_gate.get_or_create_profile(kiran_id)
+    execute("UPDATE user_profiles SET is_public = 0 WHERE user_id = ?", (kiran_id,))
+    handle_kiran = prof_kiran["handle"]
+    client_noroot.cookies.clear()
+    res_anon_priv = client_noroot.get(f"/u/{handle_kiran}")
+    client_noroot.cookies.set("persona_id", str(arvind_id))
+    res_other_priv = client_noroot.get(f"/u/{handle_kiran}")
+    client_noroot.cookies.set("persona_id", str(kiran_id))
+    res_owner_priv = client_noroot.get(f"/u/{handle_kiran}")
+    ok_159 = (res_anon_priv.status_code == 404 and res_other_priv.status_code == 404 and res_owner_priv.status_code == 200)
+    check(159, "private profile is 404 for others", ok_159, f"anon={res_anon_priv.status_code}, other={res_other_priv.status_code}, owner={res_owner_priv.status_code}")
+
+    # (160) minor profile hides links
+    prof_tara = profiles_gate.get_or_create_profile(tara_id)
+    execute(
+        "UPDATE user_profiles SET is_public = 1, github_url = 'https://github.com/tara', portfolio_url = 'https://tara-research.org' WHERE user_id = ?",
+        (tara_id,),
+    )
+    handle_tara = prof_tara["handle"]
+    client_noroot.cookies.clear()
+    res_minor_view = client_noroot.get(f"/u/{handle_tara}")
+    ok_160 = (
+        res_minor_view.status_code == 200
+        and "https://github.com/tara" not in res_minor_view.text
+        and "https://tara-research.org" not in res_minor_view.text
+    )
+    check(160, "minor profile hides links", ok_160, f"status={res_minor_view.status_code}, has_links={'https://github.com/tara' in res_minor_view.text}")
+
+    # (161) export contains only own data
+    client_noroot.cookies.set("persona_id", str(arvind_id))
+    res_exp = client_noroot.get("/settings/data/export")
+    exp_ok = False
+    if res_exp.status_code == 200:
+        exp_data = res_exp.json()
+        own_user = exp_data.get("user", {}).get("id") == arvind_id
+        own_conts = all(c.get("author_id") == arvind_id for c in exp_data.get("contributions", []))
+        own_revs = all(r.get("reviewer_id") == arvind_id for r in exp_data.get("reviews", []))
+        own_creds = all(cr.get("user_id") == arvind_id for cr in exp_data.get("credentials", []))
+        exp_ok = own_user and own_conts and own_revs and own_creds
+    check(161, "export contains only own data", exp_ok, f"status={res_exp.status_code}, own={exp_ok}")
+
+    # (162) stale session is rejected after signout-all
+    client_noroot.cookies.clear()
+    client_noroot.cookies.set("persona_id", str(arvind_id))
+    client_noroot.cookies.set("session_epoch", "0")
+    res_so = client_noroot.post("/settings/security/signout-all")
+    client_noroot.cookies.set("persona_id", str(arvind_id))
+    client_noroot.cookies.set("session_epoch", "0")
+    res_stale_acc = client_noroot.get("/settings/account")
+    ok_162 = res_so.status_code == 303 and (res_stale_acc.status_code in (303, 401))
+    check(162, "stale session is rejected after signout-all", ok_162, f"so_status={res_so.status_code}, stale_status={res_stale_acc.status_code}")
+
 
     if all_passed:
         print("\nALL CHECKS PASSED")

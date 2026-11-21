@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}{{ target_user.name }} — Researcher Profile — Provenance{% endblock %}
-{% block meta_description %}{{ target_user.name }}'s verified researcher scorecard on Provenance. Cryptographically verified credits, credentials, and contributions.{% endblock %}
+{% block title %}{{ display_title }}{% if profile.handle %} (@{{ profile.handle }}){% endif %} — Researcher Profile — CritX{% endblock %}
+{% block meta_description %}{{ profile.headline or profile.bio or (display_title ~ "'s verified researcher scorecard on CritX.") }}{% endblock %}
+{% block og_title %}{{ display_title }}{% if profile.handle %} (@{{ profile.handle }}){% endif %} | CritX{% endblock %}
+{% block og_description %}{{ profile.headline or profile.bio or 'Cryptographically verified researcher credentials and provenance records.' }}{% endblock %}
 
 {% block content %}
 <div style="max-width:880px;margin:2rem auto;padding:0 1rem 4rem;">
@@ -15,48 +17,96 @@
 
         <div style="flex:1;min-width:260px;">
             <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.35rem;">
-                <h1 style="font-size:1.85rem;font-weight:900;letter-spacing:-0.03em;margin:0;">{{ target_user.name }}</h1>
+                <h1 style="font-size:1.85rem;font-weight:900;letter-spacing:-0.03em;margin:0;">{{ display_title }}</h1>
+                {% if profile.handle %}
+                <span style="font-family:var(--font-mono);color:var(--muted);font-size:1rem;">@{{ profile.handle }}</span>
+                {% endif %}
                 <span class="role-chip role-{{ target_user.role }}">{{ target_user.role | upper }}</span>
                 <span class="chip chip-lime" style="font-size:0.7rem;">LEVEL {{ target_user.verification_level }} VERIFIED</span>
+                {% if is_minor %}
+                <span class="chip" style="font-size:0.7rem;background:rgba(255,255,255,0.08);color:var(--muted);">PROTECTED RESEARCHER</span>
+                {% endif %}
             </div>
 
-            {% if profile.headline %}
+            {% if profile.headline and not is_minor %}
             <div style="font-size:1rem;color:var(--text);font-weight:600;margin-bottom:0.4rem;">
                 {{ profile.headline }}
             </div>
             {% endif %}
 
             <div style="font-size:0.88rem;color:var(--muted);display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.6rem;">
-                {% if profile.show_institution and (target_user.institution or profile.institution) %}
+                {% if profile.show_institution and (target_user.institution or profile.institution) and not is_minor %}
                 <span>{{ target_user.institution or profile.institution }}</span>
+                <span>&bull;</span>
+                {% endif %}
+                {% if profile.location and not is_minor %}
+                <span>📍 {{ profile.location }}</span>
                 <span>&bull;</span>
                 {% endif %}
                 <span>On-chain ID: <code>#{{ target_user.id }}</code></span>
             </div>
 
-            {% if target_user.bio or profile.bio %}
+            {% if (target_user.bio or profile.bio) and not is_minor %}
             <p style="font-size:0.92rem;color:var(--muted);max-width:620px;line-height:1.6;margin:0.5rem 0 1rem;">
                 {{ target_user.bio or profile.bio }}
             </p>
             {% endif %}
 
-            {# External links #}
+            {# External links (HIDDEN FOR MINORS per safety specification) #}
+            {% if not is_minor %}
             <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.5rem;">
                 {% if profile.github_url %}
-                <a href="{{ profile.github_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="font-size:0.8rem;">
-                    ⌥ GitHub
+                <a href="{{ profile.github_url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="btn btn-secondary btn-sm" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
                 </a>
                 {% endif %}
                 {% if profile.linkedin_url %}
-                <a href="{{ profile.linkedin_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="font-size:0.8rem;">
-                    in LinkedIn
+                <a href="{{ profile.linkedin_url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="btn btn-secondary btn-sm" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                    LinkedIn
+                </a>
+                {% endif %}
+                {% if profile.x_url %}
+                <a href="{{ profile.x_url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="btn btn-secondary btn-sm" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    X
+                </a>
+                {% endif %}
+                {% if profile.instagram_url %}
+                <a href="{{ profile.instagram_url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="btn btn-secondary btn-sm" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                    Instagram
+                </a>
+                {% endif %}
+                {% if profile.youtube_url %}
+                <a href="{{ profile.youtube_url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="btn btn-secondary btn-sm" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                    YouTube
+                </a>
+                {% endif %}
+                {% if profile.scholar_url %}
+                <a href="{{ profile.scholar_url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="btn btn-secondary btn-sm" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:4px;">
+                    🎓 Scholar
+                </a>
+                {% endif %}
+                {% if profile.orcid_url %}
+                <a href="{{ profile.orcid_url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="btn btn-secondary btn-sm" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:4px;">
+                    🆔 ORCID
                 </a>
                 {% endif %}
                 {% if profile.portfolio_url %}
-                <a href="{{ profile.portfolio_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="font-size:0.8rem;">
-                    Portfolio
+                <a href="{{ profile.portfolio_url }}" target="_blank" rel="noopener noreferrer nofollow ugc" class="btn btn-secondary btn-sm" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:4px;">
+                    🌐 Portfolio
                 </a>
                 {% endif %}
+            </div>
+            {% endif %}
+
+            <div style="margin-top:1rem;">
+                <a href="/u/{{ profile.handle or target_user.id }}/resume" class="btn btn-sm btn-outline" style="font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
+                    📄 View Printable Resume &amp; QR
+                </a>
             </div>
         </div>
 
@@ -73,6 +123,62 @@
             </div>
         </div>
     </div>
+
+    {# ── AI Transparency Scorecard ── #}
+    {% if ai_stats and ai_stats.total > 0 %}
+    <div style="margin-bottom:2.5rem;background:rgba(255,255,255,0.02);border:1px solid var(--line);border-radius:var(--radius-md);padding:1.25rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+            <h3 style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin:0;">
+                AI Transparency &amp; Provenance Mix
+            </h3>
+            <span style="font-size:0.78rem;color:var(--muted);">{{ ai_stats.total }} contributions</span>
+        </div>
+        <div style="height:10px;display:flex;border-radius:6px;overflow:hidden;background:rgba(0,0,0,0.5);margin-bottom:0.85rem;">
+            <div style="width:{{ ai_stats.human_pct }}%;background:#10b981;" title="Human: {{ ai_stats.human_pct }}%"></div>
+            <div style="width:{{ ai_stats.ai_assisted_pct }}%;background:#3b82f6;" title="AI Assisted: {{ ai_stats.ai_assisted_pct }}%"></div>
+            <div style="width:{{ ai_stats.agent_generated_pct }}%;background:#a855f7;" title="Agent Generated: {{ ai_stats.agent_generated_pct }}%"></div>
+        </div>
+        <div style="display:flex;gap:1.5rem;font-size:0.8rem;">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span style="width:10px;height:10px;border-radius:50%;background:#10b981;"></span>
+                <span>Human ({{ ai_stats.human_pct }}%)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span style="width:10px;height:10px;border-radius:50%;background:#3b82f6;"></span>
+                <span>AI-Assisted ({{ ai_stats.ai_assisted_pct }}%)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span style="width:10px;height:10px;border-radius:50%;background:#a855f7;"></span>
+                <span>Agent Generated ({{ ai_stats.agent_generated_pct }}%)</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Pinned Contributions ── #}
+    {% if pinned_conts %}
+    <div style="margin-bottom:2.5rem;">
+        <h3 style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--verified);margin-bottom:0.75rem;">
+            📌 Featured Contributions
+        </h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));gap:1rem;">
+            {% for c in pinned_conts %}
+            <div class="card" style="padding:1rem;background:var(--panel);border:1px solid var(--verified);border-radius:var(--radius-md);">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
+                    <span class="chip" style="font-size:0.65rem;text-transform:uppercase;background:rgba(255,255,255,0.05);">{{ c.ai_declaration }}</span>
+                    <span style="font-size:0.75rem;color:var(--verified);font-weight:bold;">×{{ c.impact_weight }} impact</span>
+                </div>
+                <div style="font-size:0.95rem;font-weight:700;color:var(--text);margin-bottom:0.4rem;">
+                    {{ c.artefact_title }}
+                </div>
+                <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);">
+                    SHA-256: {{ c.artefact_hash[:16] }}…
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     {# ── Skills ── #}
     {% if skills %}

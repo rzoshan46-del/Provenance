@@ -54,7 +54,15 @@
                     {% endfor %}
                 </select>
                 <span class="role-chip role-{{ user.role }}">{{ user.role | upper }}</span>
+                <a href="/settings/notifications" class="nav-bell" id="nav-notifications-bell" title="Notifications" style="position:relative;display:inline-flex;align-items:center;margin:0 4px;color:var(--text);text-decoration:none">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                    {% set unread = get_unread_notification_count(user.id) if get_unread_notification_count else 0 %}
+                    {% if unread > 0 %}
+                    <span class="badge-unread-count" id="nav-unread-count" style="position:absolute;top:-6px;right:-8px;background:#ef4444;color:#fff;border-radius:10px;font-size:0.65rem;padding:1px 5px;font-weight:bold;line-height:1">{{ unread }}</span>
+                    {% endif %}
+                </a>
                 <a href="/me" class="nav-link nav-link-user" style="font-size:.8rem">Profile</a>
+                <a href="/settings/profile" class="nav-link" id="nav-link-settings" style="font-size:.8rem">Settings</a>
                 <a href="/switch-clear" class="nav-link nav-link-signout" style="font-size:.8rem;color:var(--muted)" title="Sign out">Sign out</a>
             {% else %}
                 <a href="/login" class="btn-signin">Sign In →</a>

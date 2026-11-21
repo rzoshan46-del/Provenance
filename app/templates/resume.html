@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ display_title }} — Verified Provenance Resume</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #e2e8f0;
+            --accent: #2563eb;
+            --tag-bg: #f1f5f9;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f8fafc;
+            color: var(--text);
+            line-height: 1.5;
+            padding: 2rem 1rem;
+        }
+        .resume-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 2.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .name { font-size: 2rem; font-weight: 800; color: var(--text); }
+        .handle { font-family: monospace; color: var(--muted); font-size: 1rem; margin-top: 2px; }
+        .role { display: inline-block; background: var(--tag-bg); color: var(--accent); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-top: 6px; }
+        .contact-info { margin-top: 8px; font-size: 0.9rem; color: var(--muted); }
+        .qr-section { text-align: center; }
+        .qr-section svg { width: 100px; height: 100px; }
+        .qr-label { font-size: 0.65rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .section-title { font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.35rem; margin: 1.5rem 0 0.75rem; }
+        .bio { font-size: 0.95rem; color: #334155; line-height: 1.6; }
+        .skills-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+        .skill-tag { background: var(--tag-bg); border: 1px solid var(--border); padding: 3px 10px; border-radius: 4px; font-size: 0.85rem; font-weight: 500; }
+        .item-card { border-left: 3px solid var(--accent); padding-left: 1rem; margin-bottom: 1rem; }
+        .item-title { font-weight: 700; font-size: 1rem; color: var(--text); }
+        .item-sub { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+        .hash { font-family: monospace; font-size: 0.75rem; color: var(--muted); background: #f8fafc; padding: 2px 6px; border-radius: 3px; display: inline-block; margin-top: 4px; }
+        .print-btn { display: inline-block; margin-bottom: 1.5rem; padding: 0.5rem 1rem; background: var(--accent); color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+        @media print {
+            body { background: #fff; padding: 0; }
+            .resume-container { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div style="max-width:800px;margin:0 auto;" class="no-print">
+        <a href="javascript:window.print()" class="print-btn">🖨️ Print / Save as PDF</a>
+        <a href="/u/{{ profile.handle or target_user.id }}" style="margin-left:1rem;color:var(--muted);text-decoration:none;font-size:0.9rem;">← Back to Profile</a>
+    </div>
+
+    <div class="resume-container">
+        <div class="header">
+            <div>
+                <h1 class="name">{{ display_title }}</h1>
+                {% if profile.handle %}
+                <div class="handle">@{{ profile.handle }}</div>
+                {% endif %}
+                <span class="role">{{ target_user.role }}</span>
+                {% if is_minor %}
+                <span class="role" style="background:#fef3c7;color:#b45309;">Protected Student</span>
+                {% endif %}
+                <div class="contact-info">
+                    {% if profile.institution and not is_minor %}
+                    <span>{{ profile.institution }}</span>
+                    {% endif %}
+                    {% if profile.location and not is_minor %}
+                    <span> · 📍 {{ profile.location }}</span>
+                    {% endif %}
+                    <span> · Verified Level {{ target_user.verification_level }}</span>
+                </div>
+            </div>
+
+            <div class="qr-section">
+                <div>{{ qr_svg | safe }}</div>
+                <div class="qr-label">Scan to Verify</div>
+            </div>
+        </div>
+
+        {% if (profile.headline or profile.bio) and not is_minor %}
+        <div class="section-title">Research Focus &amp; Summary</div>
+        {% if profile.headline %}
+        <div style="font-weight:600;font-size:1rem;margin-bottom:0.4rem;color:#1e293b;">{{ profile.headline }}</div>
+        {% endif %}
+        {% if profile.bio %}
+        <p class="bio">{{ profile.bio }}</p>
+        {% endif %}
+        {% endif %}
+
+        {% if skills %}
+        <div class="section-title">Verified Skills &amp; Core Competencies</div>
+        <div class="skills-grid">
+            {% for s in skills %}
+            <span class="skill-tag">{{ s }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if creds %}
+        <div class="section-title">Cryptographic Credentials Issued</div>
+        {% for c in creds %}
+        <div class="item-card">
+            <div class="item-title">{{ c.milestone_title }}</div>
+            <div class="item-sub">Project: {{ c.project_title }} · Issued: {{ c.issued_at[:10] }}</div>
+            <div class="hash">Hash: {{ c.credential_hash }}</div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if conts %}
+        <div class="section-title">Peer-Reviewed Contributions</div>
+        {% for ct in conts %}
+        <div class="item-card">
+            <div class="item-title">{{ ct.artefact_title }}</div>
+            <div class="item-sub">Provenance: {{ ct.ai_declaration }} · Impact Weight: ×{{ ct.impact_weight }} · {{ ct.created_at[:10] }}</div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <div style="margin-top:2.5rem;padding-top:1rem;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:0.75rem;color:var(--muted);">
+            <span>Verified on CritX Cryptographic Research Network</span>
+            <span>Digital Fingerprint: #{{ target_user.id }}</span>
+        </div>
+    </div>
+</body>
+</html>

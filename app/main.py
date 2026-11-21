@@ -62,20 +62,26 @@ app = _create_app_with_lifespan()
 
 # Add CORS middleware for Render deployment
 from fastapi.middleware.cors import CORSMiddleware
-import os
+
+raw_origins = os.getenv("FRONTEND_ORIGIN", "").strip()
+if raw_origins and raw_origins != "*":
+    cors_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+elif is_production():
+    cors_origins = [get_base_url()]
+else:
+    cors_origins = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_ORIGIN", "*")],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=get_session_secret(),
-    same_site="lax",
-    https_only=is_production(),
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # Mount static files and templates
@@ -83,6 +89,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 oauth = OAuth()
+app.state.oauth = oauth
 if google_auth_enabled():
     oauth.register(
         name="google",
@@ -93,11 +100,11 @@ if google_auth_enabled():
     )
 
 # Include routers
-from app.routers import auth, users, projects, health
+from app.routers import auth, settings
 app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(projects.router)
-app.include_router(health.router)
+app.include_router(settings.router)
+import app.profiles as _profiles_mod
+templates.env.globals["get_unread_notification_count"] = _profiles_mod.get_unread_notification_count
 templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
 
 
@@ -205,17 +212,8 @@ def favicon():
 
 @app.get("/health")
 def health():
-    table_row = query_one(
-        "SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-    )
-    user_row = query_one("SELECT count(*) as count FROM users")
-    table_count = table_row["count"] if table_row else 0
-    user_count = user_row["count"] if user_row else 0
-    return {
-        "status": "ok",
-        "tables": table_count,
-        "users": user_count,
-    }
+    from app.db import get_database_status
+    return get_database_status()
 
 
 @app.get("/")
@@ -299,7 +297,7 @@ def login_page(request: Request, user: Optional[sqlite3.Row] = Depends(current_u
 
 
 @app.get("/switch/{user_id}")
-def switch_persona(user_id: int, next: Optional[str] = None):
+def switch_persona(user_id: int, request: Request, next: Optional[str] = None):
     if get_auth_mode() != "demo":
         raise HTTPException(
             status_code=403,
@@ -321,6 +319,14 @@ def switch_persona(user_id: int, next: Optional[str] = None):
 
     response = RedirectResponse(url=target_path, status_code=303)
     response.set_cookie(key="persona_id", value=str(user_id), path="/")
+    epoch = target_user["session_epoch"] if "session_epoch" in target_user.keys() and target_user["session_epoch"] is not None else 0
+    response.set_cookie(key="session_epoch", value=str(epoch), path="/")
+    import datetime
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    if hasattr(request, "session"):
+        request.session["user_id"] = user_id
+        request.session["session_epoch"] = epoch
+        request.session["auth_at"] = now_iso
     return response
 
 
@@ -605,21 +611,23 @@ def edit_profile_submit(
     return RedirectResponse(url="/me?msg=Profile+updated+successfully!", status_code=303)
 
 
-@app.get("/u/{user_id}")
-def public_profile_page(user_id: int, request: Request):
-    target = query_one("SELECT * FROM users WHERE id = ?", (user_id,))
+@app.get("/u/{handle}")
+def public_profile_page(handle: str, request: Request):
+    import app.profiles as profiles
+    prof = profiles.get_profile_by_handle(handle)
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+
+    if prof.get("_redirect_from"):
+        return RedirectResponse(url=f"/u/{prof['handle']}", status_code=307)
+
+    target_id = prof["user_id"]
+    target = query_one("SELECT * FROM users WHERE id = ?", (target_id,))
     if not target:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    # Minors get NO public profile
-    if target["is_minor"] == 1:
-        raise HTTPException(status_code=404, detail="Profile not available.")
-
-    import app.profiles as profiles
-
-    prof = profiles.get_or_create_profile(user_id)
     viewer = current_user(request)
-    is_owner = bool(viewer and viewer["id"] == user_id)
+    is_owner = bool(viewer and viewer["id"] == target_id)
     is_admin = bool(viewer and viewer["role"] == "admin")
 
     # Privacy toggle check
@@ -627,12 +635,11 @@ def public_profile_page(user_id: int, request: Request):
         raise HTTPException(status_code=404, detail="This profile is private.")
 
     import app.credits as cr
-
-    cr_total = cr.total(user_id)
+    cr_total = cr.total(target_id)
 
     skills = []
     try:
-        skills = json.loads(target["skills"] or "[]")
+        skills = json.loads(prof.get("skills") or target["skills"] or "[]")
     except Exception:
         pass
 
@@ -645,7 +652,7 @@ def public_profile_page(user_id: int, request: Request):
         WHERE ca.user_id = ? AND ca.engagement_model_ack = 1 AND p.sensitivity_label != 'confidential'
         ORDER BY p.id DESC
         """,
-        (user_id,),
+        (target_id,),
     )
 
     # Credentials (respects show_credentials toggle)
@@ -660,10 +667,27 @@ def public_profile_page(user_id: int, request: Request):
             WHERE c.user_id = ?
             ORDER BY c.issued_at DESC
             """,
-            (user_id,),
+            (target_id,),
         )
 
+    pinned_ids = []
+    try:
+        pinned_ids = json.loads(prof.get("pinned_contributions") or "[]")
+    except Exception:
+        pass
+
+    pinned_conts = []
+    if pinned_ids:
+        placeholders = ",".join(["?"] * len(pinned_ids))
+        pinned_conts = query_all(
+            f"SELECT * FROM contributions WHERE id IN ({placeholders}) AND author_id = ?",
+            (*pinned_ids, target_id),
+        )
+
+    ai_stats = profiles.get_ai_transparency_stats(target_id)
     all_users = query_all("SELECT * FROM users ORDER BY id ASC")
+    is_minor = bool(target["is_minor"] == 1)
+    display_title = profiles.get_initials(target["name"]) if is_minor else (prof.get("display_name") or target["name"])
     initials = profiles.get_initials(target["name"])
 
     return templates.TemplateResponse(
@@ -674,11 +698,81 @@ def public_profile_page(user_id: int, request: Request):
             "all_users": all_users,
             "target_user": target,
             "profile": prof,
+            "display_title": display_title,
             "initials": initials,
+            "is_minor": is_minor,
             "cr_total": cr_total,
             "skills": skills,
             "projects": projects,
             "creds": creds,
+            "pinned_conts": pinned_conts,
+            "ai_stats": ai_stats,
+        },
+    )
+
+
+@app.get("/u/{handle}/resume")
+def public_resume_page(handle: str, request: Request):
+    import app.profiles as profiles
+    prof = profiles.get_profile_by_handle(handle)
+    if not prof:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+
+    target_id = prof["user_id"]
+    target = query_one("SELECT * FROM users WHERE id = ?", (target_id,))
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    viewer = current_user(request)
+    is_owner = bool(viewer and viewer["id"] == target_id)
+    is_admin = bool(viewer and viewer["role"] == "admin")
+
+    if prof["is_public"] == 0 and not is_owner and not is_admin:
+        raise HTTPException(status_code=404, detail="This profile is private.")
+
+    import app.certificates as certs
+    from app.config import get_base_url
+    qr_url = f"{get_base_url()}/u/{prof.get('handle') or target_id}"
+    qr_svg = certs.make_qr_svg(qr_url).decode("utf-8")
+
+    skills = []
+    try:
+        skills = json.loads(prof.get("skills") or target["skills"] or "[]")
+    except Exception:
+        pass
+
+    creds = query_all(
+        """
+        SELECT c.credential_hash, c.issued_at,
+               c.kind as milestone_title, p.title as project_title
+        FROM credentials c
+        JOIN projects p ON p.id = c.project_id
+        WHERE c.user_id = ?
+        ORDER BY c.issued_at DESC
+        """,
+        (target_id,),
+    )
+    conts = query_all(
+        "SELECT id, artefact_title, ai_declaration, impact_weight, created_at FROM contributions WHERE author_id = ? AND review_status = 'approved' ORDER BY id DESC",
+        (target_id,),
+    )
+    is_minor = bool(target["is_minor"] == 1)
+    display_title = profiles.get_initials(target["name"]) if is_minor else (prof.get("display_name") or target["name"])
+
+    return templates.TemplateResponse(
+        request,
+        "resume.html",
+        {
+            "user": viewer,
+            "target_user": target,
+            "profile": prof,
+            "display_title": display_title,
+            "is_minor": is_minor,
+            "skills": skills,
+            "creds": creds,
+            "conts": conts,
+            "qr_svg": qr_svg,
+            "public_url": qr_url,
         },
     )
 
