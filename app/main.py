@@ -296,7 +296,7 @@ def login_page(request: Request, user: Optional[sqlite3.Row] = Depends(current_u
     )
 
 
-@app.get("/switch/{user_id}")
+@app.get("/switch/{user_id}", include_in_schema=False)
 def switch_persona(user_id: int, request: Request, next: Optional[str] = None):
     if get_auth_mode() != "demo":
         raise HTTPException(
@@ -1585,7 +1585,7 @@ def api_ledger_restore():
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@app.post("/api/demo/reset")
+@app.post("/api/demo/reset", include_in_schema=False)
 def api_demo_reset():
     import app.ledger as ledger
 

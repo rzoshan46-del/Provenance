@@ -15,6 +15,80 @@
         <h1 class="login-title">Welcome back</h1>
         <p class="login-sub">Continue to your workspace with secure access.</p>
 
+        {% if auth_mode != 'demo' %}
+        <form id="email-login" style="display:flex;flex-direction:column;gap:.7rem;margin-bottom:1rem">
+            <input name="email" type="email" required maxlength="254" placeholder="Email address"
+                   style="padding:.75rem 1rem;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text)">
+            <input name="password" type="password" required minlength="8" maxlength="128" placeholder="Password"
+                   style="padding:.75rem 1rem;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text)">
+            <button type="submit" class="btn btn-primary">Sign in</button>
+            <div id="login-message" style="font-size:.82rem;color:var(--broken)" role="alert"></div>
+        </form>
+        <script>
+        document.getElementById('email-login').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const message = document.getElementById('login-message');
+            message.textContent = '';
+            const form = new FormData(event.currentTarget);
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: form.get('email'), password: form.get('password')})
+            });
+            if (response.ok) {
+                window.location.href = '/';
+                return;
+            }
+            const data = await response.json();
+            message.textContent = data.detail || 'Sign-in failed.';
+        });
+        </script>
+        <details style="margin-bottom:1rem">
+            <summary style="cursor:pointer;color:var(--muted);font-size:.82rem">Create a new account</summary>
+            <form id="email-register" style="display:flex;flex-direction:column;gap:.7rem;margin-top:.7rem">
+                <input name="name" required minlength="2" maxlength="100" placeholder="Full name"
+                       style="padding:.75rem 1rem;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text)">
+                <input name="email" type="email" required maxlength="254" placeholder="Email address"
+                       style="padding:.75rem 1rem;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text)">
+                <input name="password" type="password" required minlength="8" maxlength="128" placeholder="Password (8+ characters)"
+                       style="padding:.75rem 1rem;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text)">
+                <select name="role" required style="padding:.75rem 1rem;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text)">
+                    <option value="student">Student Researcher</option>
+                    <option value="expert">Domain Expert</option>
+                    <option value="sponsor">Research Sponsor</option>
+                </select>
+                <button type="submit" class="btn btn-secondary">Create account</button>
+                <div id="register-message" style="font-size:.82rem;color:var(--broken)" role="alert"></div>
+            </form>
+        </details>
+        <script>
+        document.getElementById('email-register').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const message = document.getElementById('register-message');
+            message.textContent = '';
+            const form = new FormData(event.currentTarget);
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: form.get('name'),
+                    email: form.get('email'),
+                    password: form.get('password'),
+                    role: form.get('role')
+                })
+            });
+            if (response.status === 201) {
+                message.style.color = 'var(--verified)';
+                message.textContent = 'Account created. Sign in above.';
+                return;
+            }
+            const data = await response.json();
+            message.style.color = 'var(--broken)';
+            message.textContent = data.detail || 'Registration failed.';
+        });
+        </script>
+        {% endif %}
+
         {% if google_enabled %}
         <a href="/auth/google/login" class="btn-google">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">

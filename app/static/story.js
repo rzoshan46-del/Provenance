@@ -80,7 +80,11 @@ document.addEventListener("DOMContentLoaded", function () {
     if (personasBox) personasBox.style.display = personas.length ? "block" : "none";
     personas.forEach(function (p) {
       const a = document.createElement("a");
-      a.href = "/switch/" + encodeURIComponent(p.user_id) + "?next=" + encodeURIComponent(p.path || "/");
+      if (p.user_id !== null && p.user_id !== undefined) {
+        a.href = "/switch/" + encodeURIComponent(p.user_id) + "?next=" + encodeURIComponent(p.path || "/");
+      } else {
+        a.href = p.path || "/";
+      }
       a.className = "btn btn-secondary btn-sm";
       a.textContent = "Open as " + (p.name || p.role);
       personasList.appendChild(a);

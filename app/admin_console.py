@@ -8,7 +8,7 @@ It never shows a confidential brief, an email address or a secret.
 
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 import app.ledger as ledger
 from app.config import (
@@ -19,7 +19,7 @@ from app.config import (
     is_production,
 )
 from app.db import query_all, query_one
-from app.deps import require_role
+from app.deps import current_user
 
 
 def _count(sql: str, params: tuple = ()) -> int:
@@ -72,8 +72,13 @@ def deployment_checks() -> List[Dict[str, Any]]:
 def build_router(templates) -> APIRouter:
     router = APIRouter()
 
-    @router.get("/admin")
-    def admin_console(request: Request, admin: Any = Depends(require_role("admin"))):
+    @router.get("/admin", include_in_schema=False)
+    def admin_console(request: Request, user: Any = Depends(current_user)):
+
+        if not user:
+            raise HTTPException(status_code=403, detail="Forbidden: administrator access required")
+        if user["role"] != "admin":
+            raise HTTPException(status_code=403, detail="Forbidden: administrator access required")
         from app import reviews
 
         all_users = query_all("SELECT * FROM users ORDER BY id ASC")
@@ -98,7 +103,7 @@ def build_router(templates) -> APIRouter:
             )
         ]
         ctx = {
-            "user": admin,
+            "user": user,
             "all_users": all_users,
             "title": "Admin Console",
             "review_counts": reviews.counts(),

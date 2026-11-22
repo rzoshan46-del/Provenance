@@ -382,8 +382,11 @@ def build_router(templates) -> APIRouter:
     def api_revoke(
         credential_hash: str,
         body: RevokeIn,
-        admin: Any = Depends(require_role("admin")),
+        user: Any = Depends(current_user),
     ):
+        if not user or user["role"] != "admin":
+            raise HTTPException(status_code=403, detail="Forbidden: administrator access required")
+        admin = user
         h = (credential_hash or "").strip().lower()
         if not HASH_RE.match(h):
             raise HTTPException(status_code=404, detail="Certificate not found")

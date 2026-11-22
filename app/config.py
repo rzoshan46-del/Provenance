@@ -38,12 +38,18 @@ def get_base_url() -> str:
 
 
 def get_session_secret() -> str:
-    return os.getenv("SESSION_SECRET") or "change-me-in-production"
+    secret = os.getenv("SESSION_SECRET")
+    if not secret:
+        if is_production():
+            raise RuntimeError("SESSION_SECRET must be configured in production environments")
+        return "provenance-demo-secret-key-change-in-production"
+    return secret
 
 
 def get_database_url() -> str:
     return (
         os.getenv("PROVENANCE_DATABASE_URL")
+        or os.getenv("DATABASE_URL")
         or os.getenv("PROVENANCE_DB")
         or "data/app.db"
     )
@@ -51,6 +57,12 @@ def get_database_url() -> str:
 
 def demo_mode_enabled() -> bool:
     return os.getenv("PROVENANCE_DEMO", "1") != "0"
+
+
+def docs_enabled() -> bool:
+    default = "0" if is_production() else "1"
+    val = os.getenv("DOCS_ENABLED", default).strip().lower()
+    return val in {"1", "true", "yes", "on"}
 
 
 def ai_mode() -> str:

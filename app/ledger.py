@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.access import can_view
-from app.db import get_conn, get_db_path
+from app.db import get_conn, get_db_path, has_postgres_url
 
 # Genesis sentinel — prev_hash of the very first ledger entry
 GENESIS_HASH = "0" * 64
@@ -57,10 +57,55 @@ def compute_entry_hash(prev_hash: str, fields: Dict[str, Any]) -> str:
 
 def ensure_genesis() -> None:
     """Idempotent — inserts the genesis entry only if ledger_entries is empty."""
-    conn = sqlite3.connect(str(get_db_path()))
-    conn.row_factory = sqlite3.Row
-    conn.isolation_level = None  # manual transaction control
+    conn = get_conn()
     try:
+        if has_postgres_url():
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT COUNT(*) AS c FROM ledger_entries")
+                    row = cur.fetchone()
+                    count = row[0] if isinstance(row, (list, tuple)) else row["c"]
+                    if count > 0:
+                        return
+                    payload = {"note": "ledger initialised"}
+                    payload_json = canonical(payload)
+                    payload_hash = _sha256(payload_json)
+                    ts = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+                    fields: Dict[str, Any] = {
+                        "action": "genesis",
+                        "actor_id": None,
+                        "actor_type": "system",
+                        "charter_version": None,
+                        "human_owner_id": None,
+                        "payload_hash": payload_hash,
+                        "project_id": None,
+                        "timestamp": ts,
+                    }
+                    entry_hash = compute_entry_hash(GENESIS_HASH, fields)
+                    cur.execute(
+                        """
+                        INSERT INTO ledger_entries
+                            (prev_hash, entry_hash, timestamp, actor_id, actor_type,
+                             human_owner_id, action, project_id, payload_json, payload_hash, charter_version)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            GENESIS_HASH,
+                            entry_hash,
+                            ts,
+                            None,
+                            "system",
+                            None,
+                            "genesis",
+                            None,
+                            payload_json,
+                            payload_hash,
+                            None,
+                        ),
+                    )
+            return
+
+        conn.isolation_level = None  # manual transaction control
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT COUNT(*) AS c FROM ledger_entries").fetchone()
         if row["c"] > 0:
@@ -72,7 +117,7 @@ def ensure_genesis() -> None:
         payload_hash = _sha256(payload_json)
         ts = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
-        fields: Dict[str, Any] = {
+        fields = {
             "action": "genesis",
             "actor_id": None,
             "actor_type": "system",
@@ -107,10 +152,11 @@ def ensure_genesis() -> None:
         )
         conn.execute("COMMIT")
     except Exception:
-        try:
-            conn.execute("ROLLBACK")
-        except Exception:
-            pass
+        if not has_postgres_url():
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
         raise
     finally:
         conn.close()
@@ -157,6 +203,59 @@ def append(
     payload_hash = _sha256(payload_json)
     ts = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
+    if has_postgres_url():
+        conn = get_conn()
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT entry_hash FROM ledger_entries ORDER BY id DESC LIMIT 1 FOR UPDATE"
+                    )
+                    last = cur.fetchone()
+                    if last:
+                        prev_hash = last[0] if isinstance(last, (list, tuple)) else last["entry_hash"]
+                    else:
+                        prev_hash = GENESIS_HASH
+
+                    fields: Dict[str, Any] = {
+                        "action": action,
+                        "actor_id": actor_id,
+                        "actor_type": actor_type,
+                        "charter_version": charter_version,
+                        "human_owner_id": human_owner_id,
+                        "payload_hash": payload_hash,
+                        "project_id": project_id,
+                        "timestamp": ts,
+                    }
+                    entry_hash = compute_entry_hash(prev_hash, fields)
+
+                    cur.execute(
+                        """
+                        INSERT INTO ledger_entries
+                            (prev_hash, entry_hash, timestamp, actor_id, actor_type,
+                             human_owner_id, action, project_id, payload_json, payload_hash, charter_version)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (
+                            prev_hash,
+                            entry_hash,
+                            ts,
+                            actor_id,
+                            actor_type,
+                            human_owner_id,
+                            action,
+                            project_id,
+                            payload_json,
+                            payload_hash,
+                            charter_version,
+                        ),
+                    )
+                    new_id = cur.fetchone()[0]
+                    return new_id
+        finally:
+            conn.close()
+
     conn = sqlite3.connect(str(get_db_path()))
     conn.row_factory = sqlite3.Row
     conn.isolation_level = None  # manual transaction control
@@ -169,7 +268,7 @@ def append(
         ).fetchone()
         prev_hash = last["entry_hash"] if last else GENESIS_HASH
 
-        fields: Dict[str, Any] = {
+        fields = {
             "action": action,
             "actor_id": actor_id,
             "actor_type": actor_type,

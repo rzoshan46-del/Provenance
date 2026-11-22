@@ -105,6 +105,64 @@ def _get_user(name_part: str) -> sqlite3.Row:
     return u
 
 
+def _link_label(href: str) -> str:
+    if href.startswith("/projects/") and href.endswith("/charter"):
+        return "View Charter"
+    if href.startswith("/projects/") and href.endswith("/milestones"):
+        return "View Milestones"
+    if href.startswith("/projects/") and href.endswith("/matching"):
+        return "View Matching"
+    if href.startswith("/projects/") and "/milestones/" in href and href.endswith("/receipt"):
+        return "View Receipt"
+    if href.startswith("/projects/"):
+        return "Open Project"
+    if href.startswith("/milestones/"):
+        return "Open Milestone"
+    if href == "/integrity":
+        return "Open Integrity Center"
+    if href == "/ledger":
+        return "Open Ledger"
+    if href == "/story":
+        return "Open Story Mode"
+    return "Open Page"
+
+
+def _normalize_story_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize persona and related-link fields for the server-rendered browser."""
+    normalized = dict(result)
+
+    personas = []
+    for persona in normalized.get("personas", []) or []:
+        if not isinstance(persona, dict):
+            continue
+        item = dict(persona)
+        user_id = item.pop("id", item.get("user_id"))
+        if user_id is not None:
+            try:
+                user_id = int(user_id)
+            except (TypeError, ValueError):
+                user_id = None
+            if user_id is not None:
+                if not query_one("SELECT id FROM users WHERE id = ?", (user_id,)):
+                    user_id = None
+        item["user_id"] = user_id
+        personas.append(item)
+    normalized["personas"] = personas
+
+    links = []
+    for link in normalized.get("links", []) or []:
+        if isinstance(link, dict):
+            href = str(link.get("href") or "")
+            label = str(link.get("label") or _link_label(href))
+        else:
+            href = str(link)
+            label = _link_label(href)
+        if href:
+            links.append({"href": href, "label": label})
+    normalized["links"] = links
+    return normalized
+
+
 def status() -> Dict[str, Any]:
     """Derive current story progress from the database."""
     _check_demo()
@@ -258,7 +316,7 @@ def status() -> Dict[str, Any]:
     }
 
 
-def run(key: str) -> Dict[str, Any]:
+def _run(key: str) -> Dict[str, Any]:
     """Execute a single step in Story Mode idempotently with prerequisite checks."""
     _check_demo()
     if key not in STEP_KEYS:
@@ -864,7 +922,12 @@ def run(key: str) -> Dict[str, Any]:
     raise HTTPException(status_code=400, detail="Unhandled step")
 
 
-def run_twist(case: str) -> Dict[str, Any]:
+def run(key: str) -> Dict[str, Any]:
+    """Run a Story step and return the normalized browser response contract."""
+    return _normalize_story_result(_run(key))
+
+
+def _run_twist(case: str) -> Dict[str, Any]:
     """Execute one of the five corner-case twist sandboxes on a dedicated test project."""
     _check_demo()
     sponsor = _get_user("Meera")
@@ -1241,3 +1304,8 @@ def run_twist(case: str) -> Dict[str, Any]:
         }
 
     raise HTTPException(status_code=400, detail=f"Unknown twist case: {case}")
+
+
+def run_twist(case: str) -> Dict[str, Any]:
+    """Run a Story twist and return the normalized browser response contract."""
+    return _normalize_story_result(_run_twist(case))

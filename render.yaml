@@ -1,10 +1,10 @@
-# Render deployment configuration
+# Render deployment configuration (100% FREE Tier)
 # https://render.com — connect your GitHub repo, click "New Web Service"
 services:
   - type: web
-    name: provenance
+    name: critx-provenance
     runtime: python
-    plan: starter
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
@@ -16,8 +16,24 @@ services:
         value: "0"
       - key: PROVENANCE_LLM
         value: off
+      - key: PROVENANCE_DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
       - key: PROVENANCE_DB
-        value: data/app.db
+        value: /var/data/app.db
+      - key: APP_BASE_URL
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
       - key: PYTHON_VERSION
         value: "3.11"
-    healthCheckPath: /
+    healthCheckPath: /health
+    disk:
+      name: provenance-data
+      mountPath: /var/data
+      sizeGB: 1

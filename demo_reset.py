@@ -5,7 +5,11 @@ from app.seed import seed_users
 
 
 def reset() -> None:
-    """Delete data/app.db if present, run init_db() and seed_users(), and print a one-line summary."""
+    """Safely reset demo database only in development mode."""
+    if os.environ.get("APP_ENV") == "production" or os.environ.get("PROVENANCE_DATABASE_URL"):
+        print("[ERROR] Database reset is forbidden in production or when using remote databases.")
+        return
+
     db_path = get_db_path()
     if db_path.exists():
         try:
