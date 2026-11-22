@@ -316,3 +316,8 @@ def build_graph(scope: str, item_id: Any = None, viewer: Optional[Any] = None) -
     except Exception as exc:
         logger.exception("Failed to build graph: %s", exc)
         return {"nodes": [], "edges": [], "source": "database", "message": "graph generation error"}
+
+
+def build_db_graph(viewer: Optional[Any] = None) -> Dict[str, Any]:
+    """Build platform graph directly from database."""
+    return _build_from_db("platform", 0, viewer)
