@@ -101,6 +101,16 @@
         </div>
         {% endfor %}
     </div>
+
+    <div class="ac-panel">
+        <h2>Graph Synchronization</h2>
+        <p style="color:var(--muted);font-size:.85rem;margin-bottom:1rem">
+            Idempotently sync platform entities and relationships into Neo4j.
+        </p>
+        <form method="POST" action="/admin/graph/sync">
+            <button type="submit" class="btn btn-secondary" style="font-size:.85rem">Sync Graph to Neo4j</button>
+        </form>
+    </div>
 </div>
 
 {% endblock %}

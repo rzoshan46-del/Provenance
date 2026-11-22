@@ -874,9 +874,17 @@ def ledger(
         if not entry.get("redacted"):
             entry["action_color"] = _action_category_color(entry.get("action"))
             payload_data = entry.get("payload")
-            entry["payload_pretty"] = (
-                json.dumps(payload_data, indent=2) if payload_data is not None else ""
-            )
+            try:
+                if isinstance(payload_data, str):
+                    try:
+                        payload_data = json.loads(payload_data)
+                    except Exception:
+                        pass
+                entry["payload_pretty"] = (
+                    json.dumps(payload_data, indent=2, default=str) if payload_data is not None else ""
+                )
+            except Exception:
+                entry["payload_pretty"] = str(payload_data) if payload_data is not None else ""
             entry["human_owner_name"] = user_names.get(entry.get("human_owner_id")) or (
                 "System" if entry.get("actor_type") == "system" else "Unknown"
             )
@@ -3490,7 +3498,8 @@ def admin_graph_sync(request: Request, user: Optional[sqlite3.Row] = Depends(cur
     from app.graph.sync import sync_all
     res = sync_all()
     accept = request.headers.get("accept", "")
-    if "text/html" in accept:
+    content_type = request.headers.get("content-type", "")
+    if "text/html" in accept or "form" in content_type:
         return RedirectResponse("/graph", status_code=303)
     return JSONResponse(res)
 
