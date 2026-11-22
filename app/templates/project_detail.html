@@ -314,5 +314,12 @@
             </div>
         </div>
     </div>
+
+    <!-- GRAPH_SLOT -->
+    <div style="margin-top: 32px;">
+        <h3 style="margin-bottom: 12px;">Project Provenance Graph</h3>
+        <div id="project-graph-slot" data-graph-slot data-graph-scope="project" data-graph-id="{{ project.id }}" style="height: 400px;"></div>
+    </div>
 </div>
+<script src="/static/graph.js"></script>
 {% endblock %}

@@ -133,6 +133,19 @@ def submit_contribution(
 
     check_contribution(contribution_id)
 
+    try:
+        from app.graph.sync import on_event
+        on_event(
+            "contribution_submit",
+            contribution_id=contribution_id,
+            milestone_id=milestone_id,
+            user_id=uid,
+            title=title,
+            ai_declaration=ai_declaration,
+        )
+    except Exception:
+        pass
+
     return {
         "status": "submitted",
         "contribution_id": contribution_id,
@@ -284,7 +297,7 @@ def review_contribution(
     now_iso = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
     # Insert review
-    execute(
+    review_id = execute(
         """
         INSERT INTO reviews (contribution_id, reviewer_id, decision, reasons, criteria_ref, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -321,6 +334,18 @@ def review_contribution(
             "reasons_hash": reasons_hash,
         },
     )
+
+    try:
+        from app.graph.sync import on_event
+        on_event(
+            "contribution_review",
+            review_id=review_id,
+            contribution_id=contribution_id,
+            reviewer_id=user["id"],
+            decision=dec,
+        )
+    except Exception:
+        pass
 
     return {
         "status": new_status,

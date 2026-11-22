@@ -412,4 +412,12 @@
 {% endif %}
 
 {% endif %}
+
+    <!-- GRAPH_SLOT -->
+    <div style="margin-top: 32px;">
+        <h3 style="margin-bottom: 12px;">Milestone &amp; Contribution Graph</h3>
+        <div id="milestones-graph-slot" data-graph-slot data-graph-scope="project" data-graph-id="{{ project.id }}" style="height: 400px;"></div>
+    </div>
+</div>
+<script src="/static/graph.js"></script>
 {% endblock %}

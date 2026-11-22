@@ -1,3 +1,4 @@
+"""Access control and permission evaluation helpers."""
 from typing import Any, Optional
 
 from app.db import query_one

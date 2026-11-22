@@ -12,3 +12,5 @@ itsdangerous==2.2.0
 psycopg>=3.2.0
 python-dotenv==1.1.1
 qrcode==8.2
+
+neo4j==5.23.0  # Added for graph persistence

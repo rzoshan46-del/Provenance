@@ -1,3 +1,4 @@
+"""projects.py module."""
 import hashlib
 import json
 import re

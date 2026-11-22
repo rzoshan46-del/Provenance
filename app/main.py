@@ -1,3 +1,4 @@
+"""CritX FastAPI application entrypoint and route orchestrator."""
 import json
 import os
 import sqlite3
@@ -19,13 +20,11 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.sessions import SessionMiddleware
 
 from app.access import can_view, membership_state
 from app.config import (
     get_auth_mode,
     get_base_url,
-    get_session_secret,
     google_auth_enabled,
     is_production,
 )
@@ -44,6 +43,11 @@ async def lifespan(app: FastAPI):
     import app.ledger as ledger
 
     ledger.ensure_genesis()
+    try:
+        from app.graph.sync import sync_all
+        sync_all()
+    except Exception:
+        pass
     yield
 
 
@@ -210,10 +214,25 @@ def favicon():
 # ─────────────────────────────────────────────
 
 
+# ===== System Routes =====
 @app.get("/health")
 def health():
     from app.db import get_database_status
     return get_database_status()
+
+
+@app.get("/health/deep")
+def health_deep():
+    from app.db import get_database_status
+    from app.graph.neo4j_client import get_neo4j_status
+    from app.config import google_auth_enabled
+    db_status = get_database_status()
+    return {
+        "status": "ok",
+        "database": db_status.get("status", "ok"),
+        "google_configured": google_auth_enabled(),
+        "neo4j": get_neo4j_status(),
+    }
 
 
 @app.get("/")
@@ -278,6 +297,7 @@ def project_overview(request: Request, user: Optional[sqlite3.Row] = Depends(cur
     )
 
 
+# ===== Auth Routes =====
 @app.get("/login")
 def login_page(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
     """Login page. Production uses Google OAuth when enabled; demo persona login remains optional only in demo mode."""
@@ -421,6 +441,7 @@ def clear_persona():
     return response
 
 
+# ===== Profile Routes =====
 @app.get("/me")
 def my_profile(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
     """Profile page: credits, history, memberships, credentials."""
@@ -813,6 +834,7 @@ def _action_category_color(action: Optional[str]) -> str:
     return "system"
 
 
+# ===== Verify Routes =====
 @app.get("/ledger")
 def ledger(
     request: Request,
@@ -956,6 +978,7 @@ def _project_list_rows(user: Optional[Any]) -> list:
 # ─────────────────────────────────────────────
 
 
+# ===== Projects Routes =====
 @app.get("/projects")
 def projects_list(
     request: Request, user: Optional[sqlite3.Row] = Depends(current_user)
@@ -1302,6 +1325,7 @@ def _build_charter_versions(project_id: int) -> list:
     return versions
 
 
+# ===== Charters Routes =====
 @app.get("/projects/{project_id}/charter")
 def charter_page(
     project_id: int,
@@ -1597,11 +1621,13 @@ def api_demo_reset():
     return JSONResponse(res, status_code=200)
 
 
+
 # ─────────────────────────────────────────────
 # Milestones & Escrow API routes (S3a)
 # ─────────────────────────────────────────────
 
 
+# ===== Milestones Routes =====
 @app.post("/api/projects/{project_id}/milestones")
 async def api_create_milestone(
     project_id: int,
@@ -1661,6 +1687,7 @@ def api_get_milestone(
     return get_milestone(user, milestone_id)
 
 
+# ===== Escrow Routes =====
 @app.post("/api/milestones/{milestone_id}/fund")
 def api_fund_milestone(
     milestone_id: int,
@@ -1677,6 +1704,7 @@ def api_fund_milestone(
 # ─────────────────────────────────────────────
 
 
+# ===== Contributions Routes =====
 @app.post("/api/milestones/{milestone_id}/contributions")
 async def api_submit_contribution(
     milestone_id: int,
@@ -2387,6 +2415,7 @@ def milestone_receipt_page(
         )
 
 
+# ===== Credits Routes =====
 @app.get("/credentials")
 def credentials_page(
     request: Request,
@@ -2550,6 +2579,7 @@ def api_get_ai_calls(
 from app.ai import workspace as workspace_mod
 
 
+# ===== Workspace Routes =====
 @app.post("/api/milestones/{milestone_id}/agent/draft")
 async def api_agent_draft(
     milestone_id: int,
@@ -3385,3 +3415,82 @@ def api_story_reset(
 
     res = demo.reset()
     return JSONResponse(res, status_code=200)
+
+
+# ===== Graph Routes =====
+
+@app.get("/graph")
+def graph_page(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
+    user_dict = dict(user) if user else None
+    return templates.TemplateResponse(
+        request,
+        "graph.html",
+        {"user": user_dict},
+    )
+
+
+@app.get("/api/graph/platform")
+def api_graph_platform(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
+    from app.graph.build import build_graph
+    user_dict = dict(user) if user else None
+    return build_graph("platform", 0, user_dict)
+
+
+@app.get("/api/graph/{scope}/{item_id}")
+def api_graph_scoped(scope: str, item_id: int, request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
+    if scope not in {"contribution", "profile", "project", "platform"}:
+        raise HTTPException(status_code=404, detail="Scope not found")
+
+    user_dict = dict(user) if user else None
+
+    # Check permissions
+    if scope == "project":
+        project = query_one("SELECT * FROM projects WHERE id = ?", (item_id,))
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if project["sensitivity_label"] != "public" and not can_view(user_dict, project, "milestones"):
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+    elif scope == "contribution":
+        c = query_one("SELECT * FROM contributions WHERE id = ?", (item_id,))
+        if not c:
+            raise HTTPException(status_code=404, detail="Contribution not found")
+        m = query_one("SELECT * FROM milestones WHERE id = ?", (c["milestone_id"],))
+        if not m:
+            raise HTTPException(status_code=404, detail="Milestone not found")
+        project = query_one("SELECT * FROM projects WHERE id = ?", (m["project_id"],))
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if project["sensitivity_label"] != "public" and not can_view(user_dict, project, "milestones"):
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+    elif scope == "profile":
+        target = query_one("SELECT * FROM users WHERE id = ?", (item_id,))
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        prof = query_one("SELECT is_public FROM user_profiles WHERE user_id = ?", (item_id,))
+        if prof and prof["is_public"] == 0:
+            if not user_dict or (user_dict["id"] != item_id and user_dict.get("role") != "admin"):
+                raise HTTPException(status_code=404, detail="Profile is private")
+
+    from app.graph.build import build_graph
+    res = build_graph(scope, item_id, user_dict)
+    if res.get("error") == "forbidden":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    elif res.get("error") == "not_found":
+        raise HTTPException(status_code=404, detail="Not found")
+    return res
+
+
+# ===== Admin Routes =====
+@app.post("/admin/graph/sync")
+def admin_graph_sync(request: Request, user: Optional[sqlite3.Row] = Depends(current_user)):
+    if not user or user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+    from app.graph.sync import sync_all
+    res = sync_all()
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        return RedirectResponse("/graph", status_code=303)
+    return JSONResponse(res)
+

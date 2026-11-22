@@ -1,3 +1,4 @@
+"""Initial idempotent database seed for users and projects."""
 import json
 
 from app.db import execute, query_one

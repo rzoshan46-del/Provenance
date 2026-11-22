@@ -38,7 +38,7 @@ from pydantic import BaseModel
 import app.ledger as ledger
 from app.config import get_base_url
 from app.db import execute, query_all, query_one
-from app.deps import current_user, require_role
+from app.deps import current_user
 
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 

@@ -1,3 +1,4 @@
+"""Global configuration and environment variable accessors."""
 import os
 from pathlib import Path
 

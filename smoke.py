@@ -4142,6 +4142,32 @@ def run_checks() -> bool:
     ok_162 = res_so.status_code == 303 and (res_stale_acc.status_code in (303, 401))
     check(162, "stale session is rejected after signout-all", ok_162, f"so_status={res_so.status_code}, stale_status={res_stale_acc.status_code}")
 
+    # (163) /api/graph/platform returns nodes and edges for a demo persona; with Neo4j unset, source == "database"
+    res_graph_plat = sponsor_client.get("/api/graph/platform")
+    graph_plat_data = res_graph_plat.json() if res_graph_plat.status_code == 200 else {}
+    ok_163 = (
+        res_graph_plat.status_code == 200
+        and len(graph_plat_data.get("nodes", [])) > 0
+        and len(graph_plat_data.get("edges", [])) > 0
+        and graph_plat_data.get("source") == "database"
+    )
+    check(163, "/api/graph/platform returns nodes and edges for a demo persona; with Neo4j unset, source == 'database'", ok_163, f"status={res_graph_plat.status_code}, nodes={len(graph_plat_data.get('nodes', []))}, src={graph_plat_data.get('source')}")
+
+    # (164) a non-member gets 403 for a private project's graph
+    res_p1_anon = anon_client.get("/api/graph/project/1")
+    ok_164 = res_p1_anon.status_code == 403
+    check(164, "a non-member gets 403 for a private project's graph", ok_164, f"status={res_p1_anon.status_code}")
+
+    # (165) the graph response never contains confidential brief text
+    graph_text = res_graph_plat.text
+    ok_165 = "SYNTHETIC RESEARCH BRIEF" not in graph_text and "confidential_brief" not in graph_text
+    check(165, "the graph response never contains confidential brief text", ok_165, f"has_brief={'SYNTHETIC RESEARCH BRIEF' in graph_text}")
+
+    # (166) /graph returns 200
+    res_graph_page = sponsor_client.get("/graph")
+    ok_166 = res_graph_page.status_code == 200 and "Provenance Graph" in res_graph_page.text
+    check(166, "/graph returns 200 and renders Provenance Graph", ok_166, f"status={res_graph_page.status_code}")
+
 
     if all_passed:
         print("\nALL CHECKS PASSED")

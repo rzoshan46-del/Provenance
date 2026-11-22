@@ -10,3 +10,7 @@ This file tracks all code and assets generated with AI tools throughout the proj
 
 - **Open Source Licensing & Repository Completion**: Added official MIT License (`LICENSE`) attributing copyright to Roshan Zameer, comprehensive open-source documentation, architecture summary, and quickstart instructions in `README.md`.
 - **Repository Refinement & Judge Presentation Polish**: Refined `README.md` with problem narrative, human craftsmanship and AI co-development philosophy, interactive 5-minute evaluator tour guide, accurate GitHub clone URLs for `rzoshan46-del`, and cleaned temporary debug scripts.
+
+
+## Development Tools
+Antigravity and a VS Code AI agent were used for implementation; the team reviewed and can explain all code.

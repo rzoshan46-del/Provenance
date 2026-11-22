@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 0 auto; padding: 24px 16px;">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <h1 style="font-size: 1.8rem; margin: 0 0 6px 0;">Provenance Graph</h1>
+      <p style="color: #64748b; margin: 0; font-size: 0.95rem;">
+        Explore multi-hop relations between Users, Projects, Milestones, Contributions, Reviews, Credentials, and Skills.
+      </p>
+    </div>
+    <div>
+      {% if user and user.role == 'admin' %}
+      <form action="/admin/graph/sync" method="post" style="display: inline;">
+        <button type="submit" class="btn" style="padding: 6px 12px; font-size: 0.85rem; background: #0f172a; color: #fff; border-radius: 6px; cursor: pointer;">
+          Sync to Neo4j
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Legend & Filter Chips -->
+  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 0.85rem;">
+      <span style="font-weight: 600; color: #475569;">Node Legend:</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 50%; background: #3b82f6;"></span> User</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 50%; background: #6366f1;"></span> Project</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 50%; background: #06b6d4;"></span> Milestone</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 50%; background: #10b981;"></span> Contribution</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 50%; background: #f97316;"></span> Review</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 50%; background: #ec4899;"></span> Skill</span>
+      <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 50%; background: #eab308;"></span> Credential</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; font-size: 0.8rem; color: #64748b;">
+      <span style="font-weight: 600;">AI Declaration Borders:</span>
+      <span style="border-bottom: 2px solid #10b981;">Human (Green)</span>
+      <span style="border-bottom: 2px solid #f59e0b;">AI-Assisted (Amber)</span>
+      <span style="border-bottom: 2px solid #8b5cf6;">Agent-Generated (Violet)</span>
+    </div>
+  </div>
+
+  <!-- Graph Main Viewer -->
+  <div id="platform-graph-container" style="height: 550px; margin-bottom: 24px;"></div>
+
+  <!-- How the Graph is Modeled Card -->
+  <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <h3 style="font-size: 1.1rem; margin: 0 0 12px 0;">How the Graph is Modeled</h3>
+    <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 16px;">
+      CritX represents provenance as a directed graph across 7 core entity types:
+    </p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; font-size: 0.85rem;">
+      <div style="padding: 10px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
+        <strong>User -AUTHORED-&gt; Contribution</strong><br>
+        <span style="color: #64748b;">Connects verified contributors to submitted artifacts.</span>
+      </div>
+      <div style="padding: 10px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #06b6d4;">
+        <strong>Contribution -FOR-&gt; Milestone</strong><br>
+        <span style="color: #64748b;">Maps work delivery directly to contract deliverables.</span>
+      </div>
+      <div style="padding: 10px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #6366f1;">
+        <strong>Milestone -PART_OF-&gt; Project</strong><br>
+        <span style="color: #64748b;">Hierarchical grouping of milestone objectives under living charters.</span>
+      </div>
+      <div style="padding: 10px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #f97316;">
+        <strong>Review -REVIEWS-&gt; Contribution</strong><br>
+        <span style="color: #64748b;">Domain expert evaluations, rubric scores, and peer decisions.</span>
+      </div>
+      <div style="padding: 10px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
+        <strong>User -REVIEWED-&gt; Review</strong><br>
+        <span style="color: #64748b;">Attribution of vetted industry experts performing evaluations.</span>
+      </div>
+      <div style="padding: 10px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #eab308;">
+        <strong>Credential -CERTIFIES-&gt; Contribution</strong><br>
+        <span style="color: #64748b;">Cryptographically verifiable skill badges and proof-of-contribution.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/graph.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    initGraphViewer("platform-graph-container", "/api/graph/platform");
+  });
+</script>
+{% endblock %}

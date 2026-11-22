@@ -1,8 +1,8 @@
+"""User profile, handle resolution, and transparency metrics."""
 import datetime
 import ipaddress
 import json
 import re
-import sqlite3
 import urllib.parse
 from typing import Any, Dict, List, Optional
 from app.db import execute, query_all, query_one

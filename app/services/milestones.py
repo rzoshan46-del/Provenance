@@ -482,6 +482,12 @@ def finalize_acceptance(
         (milestone_id,),
     )
 
+    try:
+        from app.graph.sync import on_event
+        on_event("milestone_accept", milestone_id=milestone_id)
+    except Exception:
+        pass
+
     return {"status": "accepted", "milestone_id": milestone_id}
 
 

@@ -2,14 +2,12 @@
 Provides Google OAuth login flow and demo persona switching.
 """
 
-import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from starlette.status import HTTP_303_SEE_OTHER
 from pydantic import BaseModel, Field, field_validator
 import hashlib
 import secrets
-from app.config import google_auth_enabled, get_base_url, is_production
 from app.deps import current_user
 from app.db import query_one, execute
 

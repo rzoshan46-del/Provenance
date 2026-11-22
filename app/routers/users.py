@@ -5,7 +5,7 @@ Provides endpoints to fetch the current user's profile and to update profile fie
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from app.deps import current_user
-from app.db import query_one, execute
+from app.db import execute
 from typing import Optional
 
 router = APIRouter()

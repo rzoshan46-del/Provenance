@@ -5,7 +5,7 @@ rules defined in `app.access.can_view` and role requirements.
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from typing import Any, List, Dict
+from typing import Any, Dict
 
 from app.deps import current_user, require_role
 from app.access import can_view

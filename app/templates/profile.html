@@ -171,6 +171,12 @@
             </div>
         </div>
     </div>
-</div>
 
+    <!-- GRAPH_SLOT -->
+    <div style="margin-top: 32px;">
+        <h3 style="margin-bottom: 12px;">Contributor Graph</h3>
+        <div id="profile-graph-slot" data-graph-slot data-graph-scope="profile" data-graph-id="{{ target_user.id if target_user else user.id }}" style="height: 400px;"></div>
+    </div>
+</div>
+<script src="/static/graph.js"></script>
 {% endblock %}

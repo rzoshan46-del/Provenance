@@ -1,3 +1,4 @@
+"""FastAPI dependencies for authentication and role verification."""
 import sqlite3
 import time
 import secrets

@@ -1,13 +1,14 @@
+"""settings.py module."""
 import json
 import sqlite3
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 import app.profiles as profiles
-from app.db import execute, query_all, query_one
+from app.db import execute, query_all
 from app.deps import csrf_protect, current_user, rate_limit
 
 router = APIRouter()
