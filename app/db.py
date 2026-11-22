@@ -16,7 +16,12 @@ DB_DEFAULT_PATH = "data/app.db"
 
 def get_db_path() -> Path:
     """Return the database Path configured via PROVENANCE_DB env var."""
-    raw_path = os.environ.get("PROVENANCE_DB", DB_DEFAULT_PATH)
+    default_path = (
+        "/tmp/app.db"
+        if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        else DB_DEFAULT_PATH
+    )
+    raw_path = os.environ.get("PROVENANCE_DB", default_path)
     path = Path(raw_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     return path

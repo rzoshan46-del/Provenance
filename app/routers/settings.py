@@ -1,6 +1,7 @@
 """settings.py module."""
 import json
 import sqlite3
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -12,7 +13,8 @@ from app.db import execute, query_all
 from app.deps import csrf_protect, current_user, rate_limit
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 import app.credits as _credits_mod
 import app.ledger as _ledger_mod
